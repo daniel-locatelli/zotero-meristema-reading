@@ -1,0 +1,17 @@
+{
+  "notes": ["doi-and-keys.html"],
+  "expect": {
+    "ok": true,
+    "states": {
+      "doi:10.1000/xyz": "read",
+      "user:ABCD2345": "reading",
+      "group-123:BCDE3456": "unread",
+      "user:CDEF4567": "unread"
+    },
+    "mirror": {
+      "doi:10.1000/xyz": "_read",
+      "user:ABCD2345": "_reading",
+      "group-123:BCDE3456": null
+    }
+  }
+}

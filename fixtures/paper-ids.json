@@ -1,0 +1,30 @@
+[
+  {
+    "ref": {
+      "doi": "https://doi.org/10.1000/ABC.",
+      "library": { "kind": "user" },
+      "key": "ABCD2345"
+    },
+    "id": "doi:10.1000/abc"
+  },
+  {
+    "ref": { "doi": null, "library": { "kind": "user" }, "key": "ABCD2345" },
+    "id": "user:ABCD2345"
+  },
+  {
+    "ref": {
+      "doi": "",
+      "library": { "kind": "group", "id": 123 },
+      "key": "BCDE3456"
+    },
+    "id": "group-123:BCDE3456"
+  },
+  {
+    "ref": {
+      "doi": "not a doi",
+      "library": { "kind": "user" },
+      "key": "CDEF4567"
+    },
+    "id": "user:CDEF4567"
+  }
+]

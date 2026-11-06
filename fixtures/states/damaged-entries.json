@@ -1,0 +1,14 @@
+{
+  "notes": ["damaged-entries.html"],
+  "expect": {
+    "ok": true,
+    "states": {
+      "user:ABCD2345": "read",
+      "user:BCDE3456": "unread",
+      "user:CDEF4567": "unread",
+      "user:DEFG5678": "unread",
+      "__proto__": "unread"
+    },
+    "mirror": { "user:ABCD2345": "_read" }
+  }
+}
