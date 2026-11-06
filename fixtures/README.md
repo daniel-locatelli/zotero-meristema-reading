@@ -192,7 +192,8 @@ with R and D the counts of Reading and Read entries, then
 `<pre data-meristema-reading-state="1">E(JSON)</pre>`.
 
 `JSON` is what `JSON.stringify` writes, which Python's
-`json.dumps(value, ensure_ascii=False, separators=(",", ":"))` matches:
+`json.dumps(value, ensure_ascii=False, separators=(",", ":"))` matches except
+for lone surrogates (last bullet), which a Python writer must escape itself:
 
 - no whitespace between tokens; `version` written as `1`;
 - keys in this order: list `version`, `topic`, `steps`, each step `key`,
@@ -206,4 +207,5 @@ with R and D the counts of Reading and Read entries, then
   `\udxxx` with lowercase hex, as `JSON.stringify` does; a valid pair is
   written as itself. No fixture covers it: the visible text of a note holds
   `topic`, `why` and labels unescaped, and a lone surrogate cannot be written
-  to a UTF-8 file.
+  to a UTF-8 file. A writer given one writes it raw in the visible text, as
+  `E()` does; making the note storable is the caller's concern.
