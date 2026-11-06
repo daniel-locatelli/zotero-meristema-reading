@@ -3,12 +3,9 @@
   "expect": {
     "ok": true,
     "states": {
-      "user:ABCD2345": "read",
-      "user:BCDE3456": "unread",
-      "user:CDEF4567": "unread",
-      "user:DEFG5678": "unread",
-      "__proto__": "unread"
+      "user:ABCD2345": { "state": "read", "at": "2026-11-01T00:00:00Z" }
     },
-    "mirror": { "user:ABCD2345": "_read" }
+    "absent": ["user:BCDE3456", "user:CDEF4567", "user:DEFG5678", "__proto__"],
+    "mirror": { "user:ABCD2345": "_read", "user:BCDE3456": null }
   }
 }

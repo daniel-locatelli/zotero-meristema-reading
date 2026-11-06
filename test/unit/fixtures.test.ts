@@ -20,6 +20,7 @@ import {
   type PaperRef,
   type ReadState,
   type ReadStateDoc,
+  type ReadStateEntry,
 } from "../../src/format/readState";
 
 const root = fileURLToPath(new URL("../../fixtures/", import.meta.url));
@@ -51,7 +52,8 @@ interface StateCase {
     | Failure
     | {
         ok: true;
-        states: Record<string, ReadState>;
+        states: Record<string, ReadStateEntry>;
+        absent: string[];
         mirror: Record<string, string | null>;
       };
 }
@@ -77,28 +79,44 @@ describe("list fixtures", () => {
 });
 
 describe("state fixtures", () => {
+  const mergeAll = (notes: string[]): ReadStateDoc => {
+    let doc: ReadStateDoc = emptyReadState();
+    for (const note of notes) {
+      const parsed = parseReadState(text(`states/${note}`));
+      if (!parsed.ok) throw new Error(`${note} failed: ${parsed.reason}`);
+      doc = mergeReadStates(doc, parsed.value);
+    }
+    return doc;
+  };
+
   for (const name of cases("states")) {
-    it(name, () => {
-      const c = json<StateCase>(`states/${name}`);
-      const want = c.expect;
-      let doc: ReadStateDoc = emptyReadState();
-      for (const note of c.notes) {
-        const parsed = parseReadState(text(`states/${note}`));
-        if (!parsed.ok) {
-          expect(want.ok, `${note} failed: ${parsed.reason}`).to.equal(false);
-          if (!want.ok) expect(parsed.reason).to.equal(want.reason);
-          return;
+    const c = json<StateCase>(`states/${name}`);
+    const want = c.expect;
+    if (!want.ok) {
+      it(name, () => {
+        expect(c.notes, "a failure case has one note").to.have.length(1);
+        expect(parseReadState(text(`states/${c.notes[0]}`))).to.deep.equal({
+          ok: false,
+          reason: want.reason,
+        });
+      });
+      continue;
+    }
+    const orders =
+      c.notes.length > 1 ? [c.notes, [...c.notes].reverse()] : [c.notes];
+    for (const notes of orders) {
+      it(`${name} (${notes.join(", ")})`, () => {
+        const doc = mergeAll(notes);
+        expect(doc.states).to.deep.equal(want.states);
+        for (const id of want.absent) {
+          expect(Object.hasOwn(doc.states, id), id).to.equal(false);
+          expect(stateOf(doc, id), id).to.equal("unread");
         }
-        doc = mergeReadStates(doc, parsed.value);
-      }
-      if (!want.ok) throw new Error(`${name} parsed; wanted ${want.reason}`);
-      for (const [id, state] of Object.entries(want.states)) {
-        expect(stateOf(doc, id), id).to.equal(state);
-      }
-      for (const [id, tag] of Object.entries(want.mirror)) {
-        expect(mirrorTag(stateOf(doc, id)), id).to.equal(tag);
-      }
-    });
+        for (const [id, tag] of Object.entries(want.mirror)) {
+          expect(mirrorTag(stateOf(doc, id)), id).to.equal(tag);
+        }
+      });
+    }
   }
 });
 
