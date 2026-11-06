@@ -13,6 +13,7 @@ import {
   stateOf,
   writeReadState,
   type ReadState,
+  type ReadStateDoc,
 } from "../../src/format/readState";
 import { dataBlock } from "../../src/format/html";
 
@@ -98,6 +99,48 @@ describe("mergeReadStates", () => {
     expect(stateOf(merged, "user:ABCD2345")).to.equal("unread");
     expect(stateOf(merged, "user:BCDE3456")).to.equal("read");
     expect(mergeReadStates(b, a)).to.deep.equal(merged);
+  });
+});
+
+describe("merge determinism and dates", () => {
+  const id = "user:ABCD2345";
+
+  it("refuses to stamp a state with an unparsable date", () => {
+    expect(() => setState(emptyReadState(), id, "read", "not a date")).to.throw(
+      RangeError,
+    );
+  });
+
+  it("lets the valid side win over an unparsable date, in either order", () => {
+    const valid = setState(
+      emptyReadState(),
+      id,
+      "unread",
+      "2020-01-01T00:00:00Z",
+    );
+    const bad: ReadStateDoc = {
+      version: 1,
+      states: { [id]: { state: "read", at: "not a date" } },
+    };
+    expect(mergeReadStates(valid, bad).states[id]).to.deep.equal(
+      valid.states[id],
+    );
+    expect(mergeReadStates(bad, valid).states[id]).to.deep.equal(
+      valid.states[id],
+    );
+  });
+
+  it("writes the same bytes for equal instants in either order", () => {
+    const a = setState(emptyReadState(), id, "read", "2026-01-01T00:00:00Z");
+    const b = setState(
+      emptyReadState(),
+      id,
+      "read",
+      "2026-01-01T00:00:00.000Z",
+    );
+    expect(writeReadState(mergeReadStates(a, b))).to.equal(
+      writeReadState(mergeReadStates(b, a)),
+    );
   });
 });
 

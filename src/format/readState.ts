@@ -56,6 +56,10 @@ function isReadState(value: unknown): value is ReadState {
   return value === "unread" || value === "reading" || value === "read";
 }
 
+function isValidAt(at: unknown): at is string {
+  return typeof at === "string" && Number.isFinite(Date.parse(at));
+}
+
 export function parseReadState(html: string): Parsed<ReadStateDoc> {
   const block = readVersionedBlock(html, READ_STATE_ATTRIBUTE);
   if (!block.ok) return block;
@@ -68,7 +72,7 @@ export function parseReadState(html: string): Parsed<ReadStateDoc> {
     if (!isPaperId(id) || !entry || typeof entry !== "object") continue;
     const { state, at } = entry as Record<string, unknown>;
     if (!isReadState(state)) continue;
-    if (typeof at !== "string" || !Number.isFinite(Date.parse(at))) continue;
+    if (!isValidAt(at)) continue;
     states[id] = { state, at };
   }
   return { ok: true, value: { version: 1, states } };
@@ -84,14 +88,21 @@ export function setState(
   state: ReadState,
   at: string,
 ): ReadStateDoc {
+  if (!isValidAt(at)) throw new RangeError(`Unparsable read-state date: ${at}`);
   return { version: 1, states: { ...doc.states, [id]: { state, at } } };
 }
 
 function later(a: ReadStateEntry, b: ReadStateEntry): ReadStateEntry {
   const ta = Date.parse(a.at);
   const tb = Date.parse(b.at);
-  if (ta !== tb) return ta > tb ? a : b;
-  return RANK[a.state] >= RANK[b.state] ? a : b;
+  const aOk = Number.isFinite(ta);
+  const bOk = Number.isFinite(tb);
+  if (aOk !== bOk) return aOk ? a : b;
+  if (aOk && ta !== tb) return ta > tb ? a : b;
+  if (RANK[a.state] !== RANK[b.state]) {
+    return RANK[a.state] > RANK[b.state] ? a : b;
+  }
+  return a.at >= b.at ? a : b;
 }
 
 export function mergeReadStates(
