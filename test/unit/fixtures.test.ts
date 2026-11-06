@@ -118,9 +118,9 @@ describe("state fixtures", () => {
   for (const name of cases("states")) {
     const c = json<StateCase>(`states/${name}`);
     const want = c.expect;
-    ran.add(`states/${name}`);
     if (!want.ok) {
       it(name, () => {
+        ran.add(`states/${name}`);
         expect(c.notes, "a failure case has one note").to.have.length(1);
         expect(parseReadState(text(`states/${c.notes[0]}`))).to.deep.equal({
           ok: false,
@@ -133,6 +133,7 @@ describe("state fixtures", () => {
       c.notes.length > 1 ? [c.notes, [...c.notes].reverse()] : [c.notes];
     for (const notes of orders) {
       it(`${name} (${notes.join(", ")})`, () => {
+        ran.add(`states/${name}`);
         const doc = mergeAll(notes);
         expect(doc.states).to.deep.equal(want.states);
         for (const id of want.absent) {
@@ -185,8 +186,8 @@ describe("write fixtures", () => {
 
 describe("paper-id fixtures", () => {
   const all = json<{ ref: PaperRef; id: string }[]>(index.paperIds);
-  ran.add(index.paperIds);
   it("has cases", () => {
+    ran.add(index.paperIds);
     expect(all).to.not.be.empty;
   });
   for (const c of all) {
@@ -205,8 +206,8 @@ describe("next-up fixtures", () => {
       expect: string | null;
     }[]
   >(index.nextUp);
-  ran.add(index.nextUp);
   it("has cases", () => {
+    ran.add(index.nextUp);
     expect(all).to.not.be.empty;
   });
   all.forEach((c, index) => {

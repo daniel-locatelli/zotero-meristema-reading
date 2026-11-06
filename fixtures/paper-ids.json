@@ -80,5 +80,15 @@
       "key": "BCDE3456"
     },
     "id": "doi:10.1000/mno"
+  },
+  {
+    "ref": {
+      "doi": "10.1000/GHI",
+      "library": {
+        "kind": "user"
+      },
+      "key": "ABCD2345"
+    },
+    "id": "doi:10.1000/ghi"
   }
 ]

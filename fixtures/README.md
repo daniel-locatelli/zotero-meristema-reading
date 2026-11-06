@@ -31,7 +31,8 @@ Zotero note editor may leave them. Read them as UTF-8.
     either order: the runner merges the notes as listed and again reversed,
     and both must give this result. `states` is the full map of stored
     entries, compared whole. Each `absent` id has no entry and reads as
-    Unread. `mirror` is the tag for each id's state.
+    Unread. `mirror` is checked for each listed id: the tag for that id's
+    state.
 - `writes/<case>.json`: the writers' input, and `note`, a file holding the
   exact note the writer returns (no trailing newline).
   - `{ "kind": "list", "doc": { "version", "topic", "steps" }, "labels": { key: label }, "library", "note" }`.
@@ -76,7 +77,19 @@ The captured text then goes through three steps, in order:
    Anything else stays literal: other named entities such as `&eacute;`,
    `&#65` without its semicolon, numbers above `0x10FFFF`.
 
-`\d` and `\s` here and below are JavaScript's: `\d` is ASCII `0-9` only.
+Regex rules, here and below, for any port:
+
+- Every pattern matches the whole string. In Python use `re.fullmatch` on the
+  pattern without its `^` and `$`: `$` also matches before a final `\n`, so
+  `"2026-11-01T00:00:00Z\n"` would pass and must not. Where a pattern is not
+  anchored (the block regex, `<br>`, tags, the DOI search) it is a search, as
+  written.
+- Compile with `re.ASCII`: `\d` is `0-9` only, `\w` and `\b` are ASCII, and
+  case-insensitive matching folds ASCII letters only (`ſ` is not `s`, the
+  Kelvin sign is not `k`). Fullwidth digits do not match `\d`.
+- `\s` is JavaScript's, which `re.ASCII` does not give: the class
+  `[\t\n\v\f\r    -     　﻿]`
+  (the characters `trim` removes). Spell it out wherever `\s` is used.
 
 ## Parse failures
 
@@ -113,10 +126,15 @@ Keys a format does not name are ignored, and the writers drop them.
 - `at` is valid when it matches
   `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$`
   (checked first) and then names a real calendar time, whatever the engine:
-  month 01-12, day 01 to the month's length (leap years by the Gregorian rule:
+  year 0000-9999 (all valid, `0000-02-29` too: year 0 is a leap year), month
+  01-12, day 01 to the month's length (leap years by the Gregorian rule:
   divisible by 4, except centuries not divisible by 400), hour 00-23, minute
   00-59, second 00-59 (no leap second, no `24:00:00`), and an offset of
-  00-23 hours and 00-59 minutes. `2026-02-30T00:00:00Z`,
+  00-23 hours and 00-59 minutes. Compute the instant from the fields with
+  your own calendar arithmetic. Python's `datetime` cannot represent all of
+  them (it has no year 0, and a UTC conversion can land in year 0 or 10000,
+  as `0001-01-01T00:00:00+01:00` and `9999-12-31T23:59:59-01:00` do), so do
+  not use it for validity or for the instant. `2026-02-30T00:00:00Z`,
   `2026-01-01T24:00:00Z` and `2026-01-01T00:00:00+24:00` are not valid. No
   zone, a date alone, `"1"` or `"Nov 1 2026"` are not valid either. Setting a
   state with an invalid `at` or an id that is not a paper id is refused.
@@ -150,9 +168,10 @@ Keys a format does not name are ignored, and the writers drop them.
   2. Trim whitespace (JavaScript `trim`: Unicode White_Space and U+FEFF, not
      U+001C to U+001F as Python's `strip` would); drop a leading `http://` or `https://`, optional `dx.`,
      `doi.org/` (any case); drop a leading `doi:` and the whitespace after it
-     (any case); trim again; lowercase.
+     (any case); trim again; lowercase, locale-independent (ASCII `I` → `i`,
+     whatever the machine's locale; never a dotless `ı`).
   3. Find the first `10\.\d{4,9}/[-._;()/:a-z0-9]+` (any case). None: null.
-  4. Drop trailing `.`, `,` and `;` from it, and lowercase it.
+  4. Drop trailing `.`, `,` and `;` from it, and lowercase it the same way.
 
 ## Writers
 
@@ -182,4 +201,9 @@ with R and D the counts of Reading and Read entries, then
 - in strings, `"` and `\` are escaped with a backslash; U+0008, U+0009,
   U+000A, U+000C and U+000D as `\b`, `\t`, `\n`, `\f`, `\r`; other characters
   below U+0020 as `\u00xx` with lowercase hex; everything else is written as
-  itself (non-ASCII, `/`, U+007F, U+2028 and U+2029 included).
+  itself (non-ASCII, `/`, U+007F, U+2028 and U+2029 included);
+- a lone surrogate (an unpaired U+D800 to U+DFFF) is written as the escape
+  `\udxxx` with lowercase hex, as `JSON.stringify` does; a valid pair is
+  written as itself. No fixture covers it: the visible text of a note holds
+  `topic`, `why` and labels unescaped, and a lone surrogate cannot be written
+  to a UTF-8 file.
