@@ -56,8 +56,19 @@ function isReadState(value: unknown): value is ReadState {
   return value === "unread" || value === "reading" || value === "read";
 }
 
+/** ISO 8601 date and time with a zone: the only `at` the formats accept. */
+const AT =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+
+/** The instant `at` names, or null when it is off the grammar or no date. */
+function instantOf(at: unknown): number | null {
+  if (typeof at !== "string" || !AT.test(at)) return null;
+  const time = Date.parse(at);
+  return Number.isFinite(time) ? time : null;
+}
+
 function isValidAt(at: unknown): at is string {
-  return typeof at === "string" && Number.isFinite(Date.parse(at));
+  return instantOf(at) !== null;
 }
 
 export function parseReadState(html: string): Parsed<ReadStateDoc> {
@@ -93,12 +104,10 @@ export function setState(
 }
 
 function later(a: ReadStateEntry, b: ReadStateEntry): ReadStateEntry {
-  const ta = Date.parse(a.at);
-  const tb = Date.parse(b.at);
-  const aOk = Number.isFinite(ta);
-  const bOk = Number.isFinite(tb);
-  if (aOk !== bOk) return aOk ? a : b;
-  if (aOk && ta !== tb) return ta > tb ? a : b;
+  const ta = instantOf(a.at);
+  const tb = instantOf(b.at);
+  if ((ta === null) !== (tb === null)) return ta !== null ? a : b;
+  if (ta !== null && tb !== null && ta !== tb) return ta > tb ? a : b;
   if (RANK[a.state] !== RANK[b.state]) {
     return RANK[a.state] > RANK[b.state] ? a : b;
   }

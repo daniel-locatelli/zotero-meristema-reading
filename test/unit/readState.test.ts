@@ -111,6 +111,47 @@ describe("merge determinism and dates", () => {
     );
   });
 
+  const offGrammar = [
+    "2026-11-01T00:00:00",
+    "1",
+    "2026-11-01",
+    "Nov 1 2026",
+    "2026-11-01t00:00:00z",
+  ];
+
+  it("refuses a date outside the zoned ISO grammar", () => {
+    for (const at of offGrammar) {
+      expect(() => setState(emptyReadState(), id, "read", at), at).to.throw(
+        RangeError,
+      );
+    }
+    expect(
+      setState(emptyReadState(), id, "read", "2026-11-01T09:30:00.5+02:00")
+        .states[id],
+    ).to.deep.equal({ state: "read", at: "2026-11-01T09:30:00.5+02:00" });
+  });
+
+  it("lets a zoned date win over one the engine could still parse", () => {
+    const valid = setState(
+      emptyReadState(),
+      id,
+      "unread",
+      "2020-01-01T00:00:00Z",
+    );
+    for (const at of offGrammar) {
+      const bad: ReadStateDoc = {
+        version: 1,
+        states: { [id]: { state: "read", at } },
+      };
+      expect(mergeReadStates(valid, bad).states[id], at).to.deep.equal(
+        valid.states[id],
+      );
+      expect(mergeReadStates(bad, valid).states[id], at).to.deep.equal(
+        valid.states[id],
+      );
+    }
+  });
+
   it("lets the valid side win over an unparsable date, in either order", () => {
     const valid = setState(
       emptyReadState(),
