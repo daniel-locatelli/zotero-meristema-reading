@@ -3,10 +3,13 @@ import { expect } from "chai";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import type { LibraryLink } from "../../src/format/common";
 import {
   parseReadingList,
   resolveReadingList,
+  writeReadingList,
   type FolderItem,
+  type ReadingListDoc,
   type ResolvedStep,
 } from "../../src/format/readingList";
 import {
@@ -18,6 +21,7 @@ import {
   paperId,
   parseReadState,
   stateOf,
+  writeReadState,
   type PaperRef,
   type ReadState,
   type ReadStateDoc,
@@ -118,6 +122,41 @@ describe("state fixtures", () => {
         }
       });
     }
+  }
+});
+
+type WriteCase =
+  | {
+      kind: "list";
+      doc: ReadingListDoc;
+      labels: Record<string, string>;
+      library: LibraryLink;
+      note: string;
+    }
+  | { kind: "state"; doc: ReadStateDoc; note: string };
+
+describe("write fixtures", () => {
+  for (const name of cases("writes")) {
+    it(name, () => {
+      const c = json<WriteCase>(`writes/${name}`);
+      const want = text(`writes/${c.note}`);
+      if (c.kind === "list") {
+        const label = (key: string): string => {
+          if (!Object.hasOwn(c.labels, key)) throw new Error(`no label ${key}`);
+          return c.labels[key];
+        };
+        const note = writeReadingList(c.doc, label, c.library);
+        expect(note).to.equal(want);
+        expect(parseReadingList(note)).to.deep.equal({
+          ok: true,
+          value: c.doc,
+        });
+      } else {
+        const note = writeReadState(c.doc);
+        expect(note).to.equal(want);
+        expect(parseReadState(note)).to.deep.equal({ ok: true, value: c.doc });
+      }
+    });
   }
 });
 
