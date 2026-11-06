@@ -1,0 +1,24 @@
+{
+  "name": "zotero-meristema-reading",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ordered reading lists for Zotero, with read state kept per paper.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint:check": "prettier --check .",
+    "test:unit": "node --import ./test/nodeResolve.mjs --test \"test/unit/**/*.test.ts\"",
+    "check": "npm run lint:check && npm run typecheck && npm run test:unit"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.2.3",
+    "@types/node": "^26.2.0",
+    "chai": "^6.2.1",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24 <27",
+    "npm": ">=11.18"
+  }
+}
