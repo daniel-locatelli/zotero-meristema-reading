@@ -32,9 +32,7 @@ export interface PaperRef {
 export const MIRROR_TAGS = { reading: "_reading", read: "_read" } as const;
 
 const RANK: Record<ReadState, number> = { unread: 0, reading: 1, read: 2 };
-const PAPER_ID = new RegExp(
-  `^(?:doi:10\\.\\d{4,9}/\\S+|user:[${ITEM_KEY_CHARS}]{8}|group-\\d+:[${ITEM_KEY_CHARS}]{8})$`,
-);
+const KEY_ID = new RegExp(`^(?:user|group-\\d+):[${ITEM_KEY_CHARS}]{8}$`);
 
 export function paperId(ref: PaperRef): string {
   const doi = normalizeDOI(ref.doi);
@@ -44,8 +42,13 @@ export function paperId(ref: PaperRef): string {
     : `group-${ref.library.id}:${ref.key}`;
 }
 
+/** `doi:` and a DOI already in normalised form, or a library and item key. */
 export function isPaperId(value: string): boolean {
-  return PAPER_ID.test(value);
+  if (value.startsWith("doi:")) {
+    const doi = value.slice(4);
+    return normalizeDOI(doi) === doi;
+  }
+  return KEY_ID.test(value);
 }
 
 export function emptyReadState(): ReadStateDoc {
@@ -99,6 +102,7 @@ export function setState(
   state: ReadState,
   at: string,
 ): ReadStateDoc {
+  if (!isPaperId(id)) throw new RangeError(`Not a paper id: ${id}`);
   if (!isValidAt(at)) throw new RangeError(`Unparsable read-state date: ${at}`);
   return { version: 1, states: { ...doc.states, [id]: { state, at } } };
 }

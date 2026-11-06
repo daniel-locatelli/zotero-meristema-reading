@@ -11,6 +11,7 @@ import {
 } from "../../src/format/readingList";
 import {
   emptyReadState,
+  isPaperId,
   mergeReadStates,
   mirrorTag,
   nextUp,
@@ -124,6 +125,7 @@ describe("paper-id fixtures", () => {
   for (const c of json<{ ref: PaperRef; id: string }[]>("paper-ids.json")) {
     it(c.id, () => {
       expect(paperId(c.ref)).to.equal(c.id);
+      expect(isPaperId(c.id)).to.equal(true);
     });
   }
 });

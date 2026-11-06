@@ -45,9 +45,25 @@ describe("paperId", () => {
     expect(isPaperId("__proto__")).to.equal(false);
     expect(isPaperId("user:abcd2345")).to.equal(false);
   });
+
+  it("takes a DOI id only in its normalised form", () => {
+    expect(isPaperId("doi:10.1000/ABC")).to.equal(false);
+    expect(isPaperId("doi:10.1000/abc.")).to.equal(false);
+    expect(isPaperId("doi:https://doi.org/10.1000/abc")).to.equal(false);
+    expect(isPaperId("doi:10.1000/a(b);c:d")).to.equal(true);
+  });
 });
 
 describe("setState and stateOf", () => {
+  it("refuses an id that is not a paper id", () => {
+    for (const id of ["__proto__", "doi:10.1000/ABC", "user:abcd2345"]) {
+      expect(
+        () => setState(emptyReadState(), id, "read", "2026-11-01T00:00:00Z"),
+        id,
+      ).to.throw(RangeError);
+    }
+  });
+
   it("leaves the old document alone and keeps Unread as a tombstone", () => {
     const empty = emptyReadState();
     const read = setState(

@@ -3,9 +3,23 @@
   "expect": {
     "ok": true,
     "states": {
-      "user:ABCD2345": { "state": "read", "at": "2026-11-01T00:00:00Z" }
+      "user:ABCD2345": {
+        "state": "read",
+        "at": "2026-11-01T00:00:00Z"
+      }
     },
-    "absent": ["user:BCDE3456", "user:CDEF4567", "user:DEFG5678", "__proto__"],
-    "mirror": { "user:ABCD2345": "_read", "user:BCDE3456": null }
+    "absent": [
+      "user:BCDE3456",
+      "user:CDEF4567",
+      "user:DEFG5678",
+      "__proto__",
+      "doi:10.1000/ABC",
+      "doi:10.1000/abc.",
+      "doi:10.1000/abc"
+    ],
+    "mirror": {
+      "user:ABCD2345": "_read",
+      "user:BCDE3456": null
+    }
   }
 }
