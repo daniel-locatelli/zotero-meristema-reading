@@ -1,0 +1,43 @@
+{
+  "lists": [
+    "bad-json.json",
+    "bad-key.json",
+    "block-finding.json",
+    "br-inside-string.json",
+    "duplicate-step.json",
+    "editor-mangled.json",
+    "entities.json",
+    "lenient-attribute.json",
+    "missing-keys.json",
+    "missing-why.json",
+    "no-data.json",
+    "not-an-object.json",
+    "ordered.json",
+    "title-ties.json",
+    "unordered-leftovers.json",
+    "version-one-point-zero.json",
+    "version-string.json",
+    "version-true.json",
+    "why-null.json",
+    "wrong-version.json"
+  ],
+  "states": [
+    "bad-dates.json",
+    "damaged-entries.json",
+    "doi-and-keys.json",
+    "merge-bad-date.json",
+    "merge-same-instant.json",
+    "merge.json",
+    "states-not-an-object.json",
+    "wrong-version.json"
+  ],
+  "writes": [
+    "list-empty.json",
+    "list-escapes.json",
+    "list-plain.json",
+    "state-empty.json",
+    "state-mixed.json"
+  ],
+  "paperIds": "paper-ids.json",
+  "nextUp": "next-up.json"
+}

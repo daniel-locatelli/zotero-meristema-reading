@@ -1,6 +1,7 @@
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 import { expect } from "chai";
 import { readFileSync, readdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { LibraryLink } from "../../src/format/common";
@@ -31,10 +32,29 @@ import {
 const root = fileURLToPath(new URL("../../fixtures/", import.meta.url));
 const text = (path: string): string => readFileSync(root + path, "utf8");
 const json = <T>(path: string): T => JSON.parse(text(path)) as T;
-const cases = (dir: string): string[] =>
-  readdirSync(root + dir)
-    .filter((name) => name.endsWith(".json"))
-    .sort();
+
+interface Index {
+  lists: string[];
+  states: string[];
+  writes: string[];
+  paperIds: string;
+  nextUp: string;
+}
+type CaseDir = "lists" | "states" | "writes";
+const DIRS: readonly CaseDir[] = ["lists", "states", "writes"];
+const index = json<Index>("index.json");
+const cases = (dir: CaseDir): string[] => index[dir];
+
+// Every case the index names must run, and nothing else.
+const ran = new Set<string>();
+after(() => {
+  const listed = [
+    ...DIRS.flatMap((dir) => index[dir].map((name) => `${dir}/${name}`)),
+    index.paperIds,
+    index.nextUp,
+  ];
+  expect([...ran].sort()).to.deep.equal(listed.sort());
+});
 
 type Failure = { ok: false; reason: string };
 
@@ -66,6 +86,7 @@ interface StateCase {
 describe("list fixtures", () => {
   for (const name of cases("lists")) {
     it(name, () => {
+      ran.add(`lists/${name}`);
       const c = json<ListCase>(`lists/${name}`);
       const want = c.expect;
       const parsed = parseReadingList(text(`lists/${c.note}`));
@@ -97,6 +118,7 @@ describe("state fixtures", () => {
   for (const name of cases("states")) {
     const c = json<StateCase>(`states/${name}`);
     const want = c.expect;
+    ran.add(`states/${name}`);
     if (!want.ok) {
       it(name, () => {
         expect(c.notes, "a failure case has one note").to.have.length(1);
@@ -138,6 +160,7 @@ type WriteCase =
 describe("write fixtures", () => {
   for (const name of cases("writes")) {
     it(name, () => {
+      ran.add(`writes/${name}`);
       const c = json<WriteCase>(`writes/${name}`);
       const want = text(`writes/${c.note}`);
       if (c.kind === "list") {
@@ -161,7 +184,12 @@ describe("write fixtures", () => {
 });
 
 describe("paper-id fixtures", () => {
-  for (const c of json<{ ref: PaperRef; id: string }[]>("paper-ids.json")) {
+  const all = json<{ ref: PaperRef; id: string }[]>(index.paperIds);
+  ran.add(index.paperIds);
+  it("has cases", () => {
+    expect(all).to.not.be.empty;
+  });
+  for (const c of all) {
     it(c.id, () => {
       expect(paperId(c.ref)).to.equal(c.id);
       expect(isPaperId(c.id)).to.equal(true);
@@ -176,7 +204,11 @@ describe("next-up fixtures", () => {
       states: Record<string, ReadState>;
       expect: string | null;
     }[]
-  >("next-up.json");
+  >(index.nextUp);
+  ran.add(index.nextUp);
+  it("has cases", () => {
+    expect(all).to.not.be.empty;
+  });
   all.forEach((c, index) => {
     it(`case ${index + 1}`, () => {
       const steps = c.steps.map((key) => ({ key }));
@@ -184,5 +216,42 @@ describe("next-up fixtures", () => {
         c.expect,
       );
     });
+  });
+});
+
+describe("fixture index", () => {
+  const notesOf = (dir: CaseDir, name: string): string[] => {
+    const c = json<{ note?: string; notes?: string[] }>(`${dir}/${name}`);
+    return (c.notes ?? [c.note ?? ""]).map((note) => `${dir}/${note}`);
+  };
+  const filesIn = (dir: string): string[] =>
+    readdirSync(root + dir, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) =>
+        relative(root, join(entry.parentPath, entry.name)).split(sep).join("/"),
+      );
+
+  for (const dir of DIRS) {
+    it(`lists every case in ${dir}/, and only those`, () => {
+      expect(index[dir], dir).to.not.be.empty;
+      const onDisk = filesIn(dir)
+        .filter((path) => path.endsWith(".json"))
+        .map((path) => path.slice(dir.length + 1));
+      expect([...index[dir]].sort()).to.deep.equal(onDisk.sort());
+    });
+  }
+
+  it("leaves no file under fixtures/ unused", () => {
+    const used = new Set([
+      "README.md",
+      "index.json",
+      index.paperIds,
+      index.nextUp,
+      ...DIRS.flatMap((dir) =>
+        index[dir].flatMap((name) => [`${dir}/${name}`, ...notesOf(dir, name)]),
+      ),
+    ]);
+    expect(filesIn("").filter((path) => !used.has(path))).to.deep.equal([]);
+    for (const path of used) expect(text(path), path).to.be.a("string");
   });
 });
