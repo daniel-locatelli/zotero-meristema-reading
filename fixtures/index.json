@@ -23,10 +23,12 @@
   ],
   "states": [
     "bad-dates.json",
+    "calendar-dates.json",
     "damaged-entries.json",
     "doi-and-keys.json",
     "merge-bad-date.json",
     "merge-same-instant.json",
+    "merge-sub-millisecond.json",
     "merge.json",
     "states-not-an-object.json",
     "wrong-version.json"

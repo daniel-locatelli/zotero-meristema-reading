@@ -61,13 +61,42 @@ function isReadState(value: unknown): value is ReadState {
 
 /** ISO 8601 date and time with a zone: the only `at` the formats accept. */
 const AT =
-  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(?:Z|([+-])(\d{2}):(\d{2}))$/;
 
-/** The instant `at` names, or null when it is off the grammar or no date. */
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+/**
+ * The instant `at` names, in milliseconds since the epoch, or null when it is
+ * off the grammar or no real calendar time. Computed here, never by the
+ * engine's `Date.parse`: the fraction is cut to its first three digits, and
+ * 24:00, a leap second or an impossible day is no time at all.
+ */
 function instantOf(at: unknown): number | null {
-  if (typeof at !== "string" || !AT.test(at)) return null;
-  const time = Date.parse(at);
-  return Number.isFinite(time) ? time : null;
+  if (typeof at !== "string") return null;
+  const m = AT.exec(at);
+  if (!m) return null;
+  const [year, month, day, hour, minute, second] = m
+    .slice(1, 7)
+    .map((part) => Number(part));
+  const offsetHours = m[9] === undefined ? 0 : Number(m[9]);
+  const offsetMinutes = m[10] === undefined ? 0 : Number(m[10]);
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > daysInMonth(year, month)) return null;
+  if (hour > 23 || minute > 59 || second > 59) return null;
+  if (offsetHours > 23 || offsetMinutes > 59) return null;
+  const millis = Number((m[7] ?? "").padEnd(3, "0").slice(0, 3));
+  const offset = (offsetHours * 60 + offsetMinutes) * 60000;
+  const utc = new Date(0);
+  utc.setUTCFullYear(year, month - 1, day);
+  utc.setUTCHours(hour, minute, second, millis);
+  return utc.getTime() - (m[8] === "-" ? -offset : offset);
 }
 
 function isValidAt(at: unknown): at is string {

@@ -1,0 +1,20 @@
+{
+  "notes": ["calendar-dates.html"],
+  "expect": {
+    "ok": true,
+    "states": {
+      "user:ABCD2345": {
+        "state": "read",
+        "at": "2024-02-29T23:59:59.9999+01:00"
+      }
+    },
+    "absent": [
+      "user:BCDE3456",
+      "user:CDEF4567",
+      "user:DEFG5678",
+      "user:EFGH6789",
+      "user:FGHJ7892"
+    ],
+    "mirror": { "user:ABCD2345": "_read", "user:BCDE3456": null }
+  }
+}

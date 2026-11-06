@@ -112,9 +112,19 @@ Keys a format does not name are ignored, and the writers drop them.
   object, `state` is not `unread`, `reading` or `read`, or `at` is not valid.
 - `at` is valid when it matches
   `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$`
-  (checked first) and then names a real instant. No zone, a date alone,
-  `"1"` or `"Nov 1 2026"` are not valid. Setting a state with an invalid `at`
-  or an id that is not a paper id is refused.
+  (checked first) and then names a real calendar time, whatever the engine:
+  month 01-12, day 01 to the month's length (leap years by the Gregorian rule:
+  divisible by 4, except centuries not divisible by 400), hour 00-23, minute
+  00-59, second 00-59 (no leap second, no `24:00:00`), and an offset of
+  00-23 hours and 00-59 minutes. `2026-02-30T00:00:00Z`,
+  `2026-01-01T24:00:00Z` and `2026-01-01T00:00:00+24:00` are not valid. No
+  zone, a date alone, `"1"` or `"Nov 1 2026"` are not valid either. Setting a
+  state with an invalid `at` or an id that is not a paper id is refused.
+- The instant of a valid `at` is its UTC time at millisecond precision: the
+  fraction is cut (not rounded) to its first three digits, a shorter one is
+  padded with zeros, and the offset is subtracted. `…59.9999+01:00` is `…59.999`
+  at that offset. Two `at`s that agree at millisecond precision are the same
+  instant and fall through to the rules below.
 - A paper with no entry is Unread. Setting Unread stores an entry (a
   tombstone), so it can win a merge.
 - Merging two documents keeps every id from either. For an id in both, the
