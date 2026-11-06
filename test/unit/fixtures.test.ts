@@ -2,7 +2,7 @@ import { after, describe, it } from "node:test";
 import { expect } from "chai";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { URL, fileURLToPath } from "node:url";
 
 import type { LibraryLink } from "../../src/format/common";
 import {

@@ -1,21 +1,44 @@
 {
   "name": "zotero-meristema-reading",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Ordered reading lists for Zotero, with read state kept per paper.",
   "type": "module",
+  "packageManager": "npm@11.18.0",
+  "description": "Ordered reading lists for Zotero, with read state kept per paper.",
+  "config": {
+    "addonName": "Meristema Reading",
+    "addonID": "meristema-reading@daniel-locatelli",
+    "addonRef": "meristemareading",
+    "addonInstance": "MeristemaReading"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daniel-locatelli/zotero-meristema-reading.git"
+  },
+  "author": "Daniel Nunes Locatelli",
+  "homepage": "https://github.com/daniel-locatelli/zotero-meristema-reading#readme",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "lint:check": "prettier --check .",
+    "start": "zotero-plugin serve",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test",
+    "lint:check": "prettier --check . && eslint .",
+    "lint:fix": "prettier --write . && eslint . --fix && prettier --write .",
     "test:unit": "node --import ./test/nodeResolve.mjs --test \"test/unit/**/*.test.ts\"",
-    "check": "npm run lint:check && npm run typecheck && npm run test:unit"
+    "check": "npm run lint:check && npm run typecheck && npm run test:unit",
+    "build": "npm run check && zotero-plugin build",
+    "test": "zotero-plugin test --no-watch"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^26.2.0",
+    "@zotero-plugin/eslint-config": "^0.6.7",
     "chai": "^6.2.1",
+    "eslint": "^10.8.1",
+    "mocha": "^11.7.5",
     "prettier": "^3.7.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "zotero-plugin-scaffold": "^0.8.7",
+    "zotero-types": "^4.1.0-beta.4"
   },
   "engines": {
     "node": ">=24 <27",
