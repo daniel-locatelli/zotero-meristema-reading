@@ -40,6 +40,23 @@ describe("The Reading list section", function () {
     expect(parsed.ok, `the list note parses: ${note.getNote()}`).to.equal(true);
     return (parsed as { ok: true; value: ReadingListDoc }).value.steps;
   };
+  /** Where the section stands, for a wait that timed out. */
+  const sectionEvidence = (): string => {
+    const elem = view()?.closest("item-pane-custom-section") as any;
+    return JSON.stringify({
+      view: Boolean(view()),
+      hidden: elem?.hidden,
+      text: view()?.textContent?.slice(0, 200),
+      paneItem: win.document.querySelector("#zotero-item-pane item-details")
+        ?.item?.id,
+      selected: win.ZoteroPane.getSelectedItems().map(
+        (item: Zotero.Item) => item.id,
+      ),
+      folder: win.ZoteroPane.getSelectedCollection(true),
+      collection: collection.id,
+      tab: win.Zotero_Tabs.selectedID,
+    });
+  };
   async function untilSteps(keys: string[]): Promise<void> {
     const ok = await waitFor(
       () => rowKeys(view(), ".mr-step").join() === keys.join(),
@@ -279,7 +296,9 @@ describe("The Reading list section", function () {
           ?.textContent?.includes("Second list"),
       10_000,
     );
-    expect(named, "the ignored note is named").to.equal(true);
+    expect(named, `the ignored note is named: ${sectionEvidence()}`).to.equal(
+      true,
+    );
   });
 
   it("says a list it cannot read and offers no editing", async function () {
@@ -294,7 +313,10 @@ describe("The Reading list section", function () {
           ?.textContent?.includes("unknown-version"),
       10_000,
     );
-    expect(said, "the section says the list cannot be read").to.equal(true);
+    expect(
+      said,
+      `the section says the list cannot be read: ${sectionEvidence()}`,
+    ).to.equal(true);
     expect(view()!.querySelectorAll(".mr-step, .mr-why").length).to.equal(0);
     expect(note.getNote(), "the note is left as it was").to.equal(broken);
   });
