@@ -3,4 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
-;
+  | 'mark-read'
+  | 'mark-reading'
+  | 'mark-submenu'
+  | 'mark-unread';

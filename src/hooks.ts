@@ -1,4 +1,7 @@
 import { config } from "../package.json";
+import { registerMenus, unregisterMenus } from "./zotero/menus";
+import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
+import { resetStateStore, startStateStore } from "./zotero/stateStore";
 
 async function onStartup(): Promise<void> {
   await Promise.all([
@@ -7,6 +10,9 @@ async function onStartup(): Promise<void> {
     Zotero.uiReadyPromise,
   ]);
   for (const win of Zotero.getMainWindows()) await onMainWindowLoad(win);
+  registerNotifier();
+  await startStateStore();
+  registerMenus();
   addon.data.initialized = true;
 }
 
@@ -19,6 +25,9 @@ async function onMainWindowUnload(
 ): Promise<void> {}
 
 async function onShutdown(_appShutdown: boolean): Promise<void> {
+  unregisterMenus();
+  unregisterNotifier();
+  resetStateStore();
   addon.data.alive = false;
   delete (Zotero as any)[config.addonInstance];
 }
