@@ -146,7 +146,10 @@ export function editList(
     const list = listFor(collectionID);
     const collection = Zotero.Collections.get(collectionID);
     const note = list ? Zotero.Items.get(list.noteID) : false;
-    if (!list?.doc || !list.resolved || !collection || !note) {
+    if (!list || !collection || !note) {
+      throw new UnreadableListError("This folder's reading list is gone.");
+    }
+    if (!list.doc || !list.resolved) {
       throw new UnreadableListError(
         "This folder's reading list cannot be read, so it was not changed.",
       );

@@ -9,6 +9,7 @@ import {
   makePaper,
   rowKeys,
   waitFor,
+  withAlerts,
 } from "./helpers";
 
 const MAKE = `${config.addonRef}-make-reading-list`;
@@ -120,6 +121,12 @@ describe("The Reading list section follows the stores", function () {
       "p stays selected",
     ).to.deep.equal([p.id]);
 
+    // A reason field from the view, kept for the next step.
+    const why = section().querySelector(
+      `.mr-step[data-key="${p.key}"] .mr-why`,
+    ) as HTMLTextAreaElement;
+    expect(why, "p's reason field").to.exist;
+
     const [note] = listNotes();
     note.deleted = true;
     await note.saveTx();
@@ -127,6 +134,20 @@ describe("The Reading list section follows the stores", function () {
     const gone = await waitFor(() => !section() || section().hidden, 10_000);
     expect(gone, `the section goes with the list: ${evidence()}`).to.equal(
       true,
+    );
+
+    // An edit from a view drawn before the list went says so plainly.
+    await withAlerts(async (alerts) => {
+      why.value = "too late";
+      why.dispatchEvent(new win.Event("change", { bubbles: true }));
+      await idle();
+      expect(
+        alerts.map((alert) => alert.text),
+        "the alert for a list that is gone",
+      ).to.deep.equal(["This folder's reading list is gone."]);
+    });
+    expect(note.getNote(), "the trashed note is left alone").not.to.contain(
+      "too late",
     );
   });
 });
