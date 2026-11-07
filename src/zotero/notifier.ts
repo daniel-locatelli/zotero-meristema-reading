@@ -1,4 +1,4 @@
-import { emitChange } from "./changes";
+import { cancelChange, emitChange, isChangePending } from "./changes";
 import { clearLists } from "./listStore";
 import { isBusy } from "./queue";
 import { report } from "./report";
@@ -70,11 +70,17 @@ export function unregisterNotifier(): void {
   stateDirty = false;
   listsDirty = false;
   touched.clear();
+  cancelChange();
   if (observerID) Zotero.Notifier.unregisterObserver(observerID);
   observerID = null;
 }
 
-/** Settles once no event waits to be read and no store work runs. */
+/**
+ * Settles once no event waits to be read, no store work runs and the views
+ * have been told of the last change.
+ */
 export async function whenIdle(): Promise<void> {
-  while (flushTimer !== null || isBusy()) await Zotero.Promise.delay(20);
+  while (flushTimer !== null || isBusy() || isChangePending()) {
+    await Zotero.Promise.delay(20);
+  }
 }
