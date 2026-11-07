@@ -82,7 +82,10 @@ found, a fallback block is checked exactly as an attributed one, from step 2
 of the parse failures on (so `{"version":2}` is `unknown-version`). The note's
 tag, not its block, says whether a note is a list or a state note, so a list
 block found in a state note fails the state checks as `bad-shape`. Writers
-still write the attribute, so the next write restores it.
+still write the attribute, but while the note is open in Zotero's note editor
+the editor saves each write back without it. Readers then find the block by
+content, so nothing is lost; the next write once the editor lets go restores
+the attribute.
 
 `lists/editor-mangled` is an earlier guess at the editor's output that kept
 the attribute; `lists/editor-saved` and `states/editor-saved` have the shape the
