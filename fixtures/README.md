@@ -61,6 +61,33 @@ as `x-data-ATTR`; the value only has to start with `1`, so `10` matches too;
 the block ends at the first `</pre>`. A `<pre>` that does not match is
 skipped, so the first matching one wins over any later one.
 
+When no `<pre>` matches, fall back to content. Zotero's note editor rewrites
+any note it opens (a click on the note in the item list is enough): it wraps
+the note in `<div data-schema-version="…">` and saves every `<pre>` with no
+attributes, so a note the plugin wrote loses its attribute. The fallback takes
+each match, in order, of this regex, case-insensitive throughout, with the
+block again ending at the first `</pre>`:
+
+```
+<pre\b[^>]*>([\s\S]*?)</pre>
+```
+
+Each captured text goes through the three steps below and then `JSON.parse`.
+The block is the first one that parses to an object (not an array, not `null`)
+with its own member `version`, whatever its value. A text that is not JSON,
+an array, `null`, a string, a number or an object without `version` is
+skipped. No such `<pre>`: `no-data`. The attributed block, when there is one,
+always wins over the fallback, even when a plain `<pre>` comes first. Once
+found, a fallback block is checked exactly as an attributed one, from step 2
+of the parse failures on (so `{"version":2}` is `unknown-version`). The note's
+tag, not its block, says whether a note is a list or a state note, so a list
+block found in a state note fails the state checks as `bad-shape`. Writers
+still write the attribute, so the next write restores it.
+
+`lists/editor-mangled` is an earlier guess at the editor's output that kept
+the attribute; `lists/editor-saved` and `states/editor-saved` have the shape the
+editor saves.
+
 The captured text then goes through three steps, in order:
 
 1. Every `<br>`, `<br/>`, `<br />` (regex `<br\s*\/?>`, any case) becomes
@@ -95,7 +122,7 @@ Regex rules, here and below, for any port:
 
 In this order:
 
-1. No matching block: `no-data`.
+1. No attributed block and no fallback block: `no-data`.
 2. The text is not JSON (`JSON.parse` rules: no `NaN` or `Infinity`): `bad-json`.
 3. The top level is not an object (an array, a string, `null`): `bad-shape`.
 4. `version` is the number 1 (`1.0` is the number 1): go on. Another number:

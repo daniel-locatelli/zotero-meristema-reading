@@ -51,9 +51,23 @@ export function extractDataBlock(
     "i",
   );
   const match = pattern.exec(html);
-  if (!match) return null;
+  return match ? blockText(match[1]) : null;
+}
+
+/**
+ * The text of every `<pre>` in the note, in order, processed as
+ * `extractDataBlock` processes its block: Zotero's note editor saves `<pre>`
+ * with no attributes, so readers fall back to these.
+ */
+export function preBlockTexts(html: string): string[] {
+  return Array.from(html.matchAll(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi), (match) =>
+    blockText(match[1]),
+  );
+}
+
+function blockText(inner: string): string {
   return unescapeHtml(
-    match[1].replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, ""),
+    inner.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, ""),
   );
 }
 

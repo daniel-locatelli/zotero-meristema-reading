@@ -1,4 +1,4 @@
-import { extractDataBlock } from "./html";
+import { extractDataBlock, preBlockTexts } from "./html";
 
 export type ParseFailure =
   "no-data" | "bad-json" | "unknown-version" | "bad-shape";
@@ -22,7 +22,7 @@ export function readVersionedBlock(
   html: string,
   attribute: string,
 ): Parsed<Record<string, unknown>> {
-  const text = extractDataBlock(html, attribute);
+  const text = extractDataBlock(html, attribute) ?? versionedPreText(html);
   if (text === null) return { ok: false, reason: "no-data" };
   let data: unknown;
   try {
@@ -40,4 +40,29 @@ export function readVersionedBlock(
     reason:
       typeof record.version === "number" ? "unknown-version" : "bad-shape",
   };
+}
+
+/**
+ * Zotero's note editor saves `<pre>` without its attribute, so a note with no
+ * attributed block falls back to the first `<pre>` holding a JSON object with
+ * its own `version` (any value: the version check comes after).
+ */
+function versionedPreText(html: string): string | null {
+  for (const text of preBlockTexts(html)) {
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      continue;
+    }
+    if (
+      data &&
+      typeof data === "object" &&
+      !Array.isArray(data) &&
+      Object.prototype.hasOwnProperty.call(data, "version")
+    ) {
+      return text;
+    }
+  }
+  return null;
 }

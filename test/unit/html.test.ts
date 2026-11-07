@@ -5,6 +5,7 @@ import {
   dataBlock,
   escapeHtml,
   extractDataBlock,
+  preBlockTexts,
   unescapeHtml,
 } from "../../src/format/html";
 import { isItemKey, readVersionedBlock } from "../../src/format/common";
@@ -45,6 +46,20 @@ describe("extractDataBlock", () => {
   });
 });
 
+describe("preBlockTexts", () => {
+  it("gives every <pre>'s text in order, processed like the data block", () => {
+    const html =
+      '<PRE>a &amp; b</PRE><p>x</p><pre class="c"><code>1<br/>2</code></pre><pre data-thing="1">{}</pre>';
+    expect(preBlockTexts(html)).to.deep.equal(["a & b", "1\n2", "{}"]);
+  });
+
+  it("gives nothing for a note without <pre>", () => {
+    expect(preBlockTexts("<p>plain</p><preview>no</preview>")).to.deep.equal(
+      [],
+    );
+  });
+});
+
 describe("readVersionedBlock", () => {
   const block = (json: string) => dataBlock("thing", json);
 
@@ -64,6 +79,44 @@ describe("readVersionedBlock", () => {
     expect(reason(block('{"version":2}'))).to.equal("unknown-version");
     expect(reason(block("{}"))).to.equal("bad-shape");
     expect(reason(block("[1]"))).to.equal("bad-shape");
+  });
+
+  describe("without the attribute (the note editor drops it)", () => {
+    const read = (html: string) => readVersionedBlock(html, "thing");
+
+    it("reads the first <pre> holding an object with a version", () => {
+      expect(
+        read(
+          '<pre>let x;</pre><pre>{"a":1}</pre><pre>{"version":1,"n":1}</pre>',
+        ),
+      ).to.deep.equal({ ok: true, value: { version: 1, n: 1 } });
+    });
+
+    it("takes any version, so the version check still names the failure", () => {
+      expect(read('<pre>{"version":2}</pre>')).to.deep.equal({
+        ok: false,
+        reason: "unknown-version",
+      });
+      expect(
+        read('<pre>{"version":"1"}</pre><pre>{"version":1}</pre>'),
+      ).to.deep.equal({ ok: false, reason: "bad-shape" });
+    });
+
+    it("skips arrays, null, non-JSON and objects without their own version", () => {
+      expect(
+        read(
+          '<pre>[{"version":1}]</pre><pre>null</pre><pre>{"version":1,</pre><pre>{"a":{"version":1}}</pre>',
+        ),
+      ).to.deep.equal({ ok: false, reason: "no-data" });
+    });
+
+    it("lets an attributed block win over an earlier plain one", () => {
+      expect(
+        read(
+          '<pre>{"version":1,"n":1}</pre><pre data-thing="1">{"version":1,"n":2}</pre>',
+        ),
+      ).to.deep.equal({ ok: true, value: { version: 1, n: 2 } });
+    });
   });
 });
 
