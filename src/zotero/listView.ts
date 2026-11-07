@@ -123,6 +123,22 @@ function restoreFocus(
   target?.focus();
 }
 
+/** Shows a paper in its folder in the library tab, from the sidebar or a list tab. */
+async function showInLibrary(
+  doc: Document,
+  collectionID: number,
+  itemID: number,
+): Promise<void> {
+  const win = doc.defaultView as any;
+  win?.Zotero_Tabs?.select("zotero-pane");
+  const pane = (win?.ZoteroPane ?? Zotero.getActiveZoteroPane()) as any;
+  if (!pane) return;
+  if (pane.getSelectedCollection(true) !== collectionID) {
+    await pane.collectionsView.selectCollection(collectionID);
+  }
+  await pane.selectItem(itemID);
+}
+
 function allowDrop(event: DragEvent): void {
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
@@ -216,7 +232,7 @@ export function renderList(
     });
     const title = element(doc, "span", "mr-title", item ? labelOf(item) : key);
     title.addEventListener("click", () => {
-      if (item) void Zotero.getActiveZoteroPane()?.selectItem(item.id);
+      if (item) void showInLibrary(doc, collectionID, item.id).catch(report);
     });
     row.append(toggle, title);
     row.dataset.key = key;

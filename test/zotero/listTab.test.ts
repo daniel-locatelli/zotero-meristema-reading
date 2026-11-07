@@ -141,6 +141,41 @@ describe("The list tab", function () {
     expect(redrawn, "the tab redraws").to.equal(true);
   });
 
+  it("shows a clicked paper in its folder in the library tab", async function () {
+    const tabID = listTabs()[0].id;
+    // Somewhere else in the library first, so the click has to find the folder.
+    await win.ZoteroPane.collectionsView.selectLibrary(
+      Zotero.Libraries.userLibraryID,
+    );
+    win.Zotero_Tabs.select(tabID);
+    (
+      view()!.querySelector(`[data-key="${x.key}"] .mr-title`) as HTMLElement
+    ).click();
+    const seen = () =>
+      JSON.stringify({
+        tab: win.Zotero_Tabs.selectedID,
+        folder: win.ZoteroPane.getSelectedCollection(true),
+        selected: win.ZoteroPane.getSelectedItems().map(
+          (item: Zotero.Item) => item.id,
+        ),
+        collection: collection.id,
+        x: x.id,
+      });
+    const shown = await waitFor(
+      () =>
+        win.Zotero_Tabs.selectedID === "zotero-pane" &&
+        win.ZoteroPane.getSelectedCollection(true) === collection.id &&
+        win.ZoteroPane.getSelectedItems()
+          .map((item: Zotero.Item) => item.id)
+          .join() === String(x.id),
+      10_000,
+    );
+    expect(shown, `the library tab shows x in its folder: ${seen()}`).to.equal(
+      true,
+    );
+    expect(listTabs(), "the list tab stays open").to.have.length(1);
+  });
+
   it("selects the open tab rather than opening a second", async function () {
     await openFromMenu();
     await idle();
