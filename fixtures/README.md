@@ -62,8 +62,8 @@ the block ends at the first `</pre>`. A `<pre>` that does not match is
 skipped, so the first matching one wins over any later one.
 
 When no `<pre>` matches, fall back to content. Zotero's note editor rewrites
-any note it opens (a click on the note in the item list is enough): it wraps
-the note in `<div data-schema-version="…">` and saves every `<pre>` with no
+a note it holds open whenever the note changes underneath it (a plugin write or
+a sync): it wraps the note in `<div data-schema-version="…">` and saves every `<pre>` with no
 attributes, so a note the plugin wrote loses its attribute. The fallback takes
 each match, in order, of this regex, case-insensitive throughout, with the
 block again ending at the first `</pre>`:
