@@ -35,7 +35,18 @@ export interface ListViewOptions {
   mode: "sidebar" | "tab";
   /** The paper selected in the item list, marked in the sidebar. */
   currentKey: string | null;
+  /**
+   * False for a list in a library the reader cannot edit (a read-only
+   * group): no drags, keys or reasons to edit, though the read state, kept
+   * in My Library, still toggles.
+   */
+  editable: boolean;
   onOpenTab?: () => void;
+}
+
+/** Whether the reader may change what a library holds. */
+export function libraryEditable(libraryID: number): boolean {
+  return Boolean((Zotero.Libraries.get(libraryID) as any)?.editable);
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -59,6 +70,7 @@ function holdsTyping(container: HTMLElement, doc: Document): boolean {
     container.querySelectorAll(".mr-why"),
   ) as HTMLTextAreaElement[];
   for (const why of fields) {
+    if (why.readOnly) continue;
     if (doc.activeElement === why || why.value !== why.dataset.saved) {
       return true;
     }
@@ -144,6 +156,7 @@ export function renderList(
     "Meristema Reading could not change the reading list. See the error console.",
     doc.defaultView,
   );
+  const editable = options.editable;
   if (holdsTyping(container, doc)) {
     deferred.set(container, { collectionID, options });
     return;
@@ -157,6 +170,7 @@ export function renderList(
   refocus.delete(container);
   container.replaceChildren();
   container.classList.add("mr-list", `mr-${options.mode}`);
+  container.classList.toggle("mr-readonly", !editable);
   const list = listFor(collectionID);
   if (!list) {
     container.append(
@@ -202,6 +216,16 @@ export function renderList(
   const next = nextUp(list.resolved.steps, stateOfKey);
 
   container.append(element(doc, "div", "mr-topic", list.doc.topic));
+  if (!editable) {
+    container.append(
+      element(
+        doc,
+        "p",
+        "mr-readonly-note",
+        "This list is in a library you cannot edit, so it is shown as it is.",
+      ),
+    );
+  }
   if (options.onOpenTab) {
     const open = element(doc, "button", "mr-open-tab", "Open as Tab");
     open.addEventListener("click", () => options.onOpenTab?.());
@@ -226,6 +250,7 @@ export function renderList(
     row.dataset.key = key;
     if (key === next) row.classList.add("mr-next");
     if (key === options.currentKey) row.classList.add("mr-current");
+    if (!editable) return;
     row.addEventListener("dragstart", (event: DragEvent) => {
       // Only the handle or an unordered paper's row: text dragged out of a
       // reason bubbles here too.
@@ -245,16 +270,24 @@ export function renderList(
   function stepRow(step: ResolvedStep): HTMLElement {
     const row = element(doc, "li", "mr-step");
     row.tabIndex = 0;
-    const handle = element(doc, "span", "mr-handle", "⠿");
-    handle.draggable = true;
-    handle.title = "Drag to reorder, or Alt+Up and Alt+Down";
-    row.append(handle, element(doc, "span", "mr-number", String(step.step)));
+    if (editable) {
+      const handle = element(doc, "span", "mr-handle", "⠿");
+      handle.draggable = true;
+      handle.title = "Drag to reorder, or Alt+Up and Alt+Down";
+      row.append(handle);
+    }
+    row.append(element(doc, "span", "mr-number", String(step.step)));
     paperParts(row, step.key);
     const why = element(doc, "textarea", "mr-why");
     why.value = step.why;
     // As the field reads it back, so line endings never look like typing.
     why.dataset.saved = why.value;
     why.rows = options.mode === "tab" ? 3 : 1;
+    row.append(why);
+    if (!editable) {
+      why.readOnly = true;
+      return row;
+    }
     why.placeholder = "Why read it";
     why.addEventListener("change", () => {
       why.dataset.saved = why.value;
@@ -275,7 +308,6 @@ export function renderList(
         why.blur();
       }
     });
-    row.append(why);
     row.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.target === why || !event.altKey) return;
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
@@ -298,13 +330,15 @@ export function renderList(
 
   const steps = element(doc, "ol", "mr-steps");
   for (const step of list.resolved.steps) steps.append(stepRow(step));
-  steps.addEventListener("dragover", allowDrop);
-  steps.addEventListener("drop", (event) => {
-    event.preventDefault();
-    const moving = dragged;
-    dragged = null;
-    if (moving) void edit((current) => placeStep(current, moving, null));
-  });
+  if (editable) {
+    steps.addEventListener("dragover", allowDrop);
+    steps.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const moving = dragged;
+      dragged = null;
+      if (moving) void edit((current) => placeStep(current, moving, null));
+    });
+  }
   container.append(steps);
 
   container.append(
@@ -313,17 +347,19 @@ export function renderList(
   const unordered = element(doc, "ul", "mr-unordered");
   for (const key of list.resolved.unordered) {
     const row = element(doc, "li", "mr-paper");
-    row.draggable = true;
+    row.draggable = editable;
     paperParts(row, key);
     unordered.append(row);
   }
-  unordered.addEventListener("dragover", allowDrop);
-  unordered.addEventListener("drop", (event) => {
-    event.preventDefault();
-    const moving = dragged;
-    dragged = null;
-    if (moving) void edit((current) => unplaceStep(current, moving));
-  });
+  if (editable) {
+    unordered.addEventListener("dragover", allowDrop);
+    unordered.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const moving = dragged;
+      dragged = null;
+      if (moving) void edit((current) => unplaceStep(current, moving));
+    });
+  }
   container.append(unordered);
   restoreFocus(container, keyToFocus);
 }

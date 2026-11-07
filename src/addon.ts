@@ -1,6 +1,7 @@
 import { config } from "../package.json";
 import hooks from "./hooks";
 import { changesEmitted } from "./zotero/changes";
+import { renderList, type ListViewOptions } from "./zotero/listView";
 import { whenIdle } from "./zotero/notifier";
 import {
   stepCell,
@@ -17,6 +18,12 @@ export interface ReadingAPI {
   columnRefreshes(): number;
   /** How many times the views were told the stores changed. */
   changesEmitted(): number;
+  /** Draws a list into `container`, as the section and the tab do. */
+  renderList(
+    container: HTMLElement,
+    collectionID: number,
+    options: ListViewOptions,
+  ): void;
 }
 
 class Addon {
@@ -42,6 +49,7 @@ class Addon {
       stepColumnKey,
       columnRefreshes: stepColumnRefreshes,
       changesEmitted,
+      renderList,
     });
   }
 }

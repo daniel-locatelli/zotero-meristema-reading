@@ -1,7 +1,7 @@
 import { config } from "../../package.json";
 import { onChange } from "./changes";
 import { listFor } from "./listStore";
-import { renderList } from "./listView";
+import { libraryEditable, renderList } from "./listView";
 import { report } from "./report";
 
 const TAB_TYPE = `${config.addonRef}-list`;
@@ -55,9 +55,11 @@ function hideContextPane(
 function render(tabID: string): void {
   const view = views.get(tabID);
   if (!view) return;
+  const collection = Zotero.Collections.get(view.collectionID);
   renderList(view.container, view.collectionID, {
     mode: "tab",
     currentKey: null,
+    editable: Boolean(collection) && libraryEditable(collection.libraryID),
   });
 }
 

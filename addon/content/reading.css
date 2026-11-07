@@ -69,6 +69,7 @@
   box-sizing: border-box;
 }
 .mr-unordered-title,
+.mr-readonly-note,
 .mr-ignored,
 .mr-failure,
 .mr-empty {
@@ -106,4 +107,13 @@
 }
 .mr-tab .mr-title {
   white-space: normal;
+}
+.mr-readonly .mr-step {
+  grid-template-columns: auto auto 1fr;
+}
+.mr-readonly .mr-paper {
+  cursor: default;
+}
+.mr-readonly .mr-unordered:empty::after {
+  content: none;
 }

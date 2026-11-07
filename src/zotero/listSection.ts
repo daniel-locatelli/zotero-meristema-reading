@@ -1,7 +1,7 @@
 import { config } from "../../package.json";
 import { onChange } from "./changes";
 import { listFor } from "./listStore";
-import { renderList } from "./listView";
+import { libraryEditable, renderList } from "./listView";
 import { report } from "./report";
 
 const ICON = `chrome://${config.addonRef}/content/icons/reading.svg`;
@@ -115,9 +115,11 @@ export function registerListSection(
         setEnabled(false);
         return;
       }
+      const collection = Zotero.Collections.get(collectionID);
       renderList(body, collectionID, {
         mode: "sidebar",
         currentKey: item.key,
+        editable: Boolean(collection) && libraryEditable(collection.libraryID),
         onOpenTab: () => openTab(collectionID),
       });
     },

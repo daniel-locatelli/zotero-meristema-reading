@@ -14,6 +14,7 @@ import {
   idle,
   makeListNote,
   makePaper,
+  plugin,
   rowKeys,
   stateNotes,
   waitFor,
@@ -274,6 +275,65 @@ describe("The Reading list section", function () {
       moved,
       `next up is the Reading step; it is ${rowKeys(view(), ".mr-next")}`,
     ).to.equal(true);
+  });
+
+  it("draws a list read-only when its library cannot be edited", async function () {
+    // No group library in the test profile: draw this list as one would be,
+    // through the running plugin's view, with editing off.
+    const container = win.document.createElementNS(
+      "http://www.w3.org/1999/xhtml",
+      "div",
+    ) as HTMLElement;
+    win.document.documentElement.append(container);
+    try {
+      plugin().api.renderList(container, collection.id, {
+        mode: "tab",
+        currentKey: null,
+        editable: false,
+      });
+      const rowIn = (key: string) =>
+        container.querySelector(`[data-key="${key}"]`) as HTMLElement;
+      const before = stepsInNote();
+      expect(rowKeys(container, ".mr-step"), "the steps").to.deep.equal([
+        c.key,
+        b.key,
+      ]);
+      const drawn = JSON.stringify({
+        handles: container.querySelectorAll(".mr-handle").length,
+        draggable: container.querySelectorAll("[draggable=true]").length,
+        writable: Array.from(container.querySelectorAll(".mr-why")).filter(
+          (why) => !(why as HTMLTextAreaElement).readOnly,
+        ).length,
+        readOnly: container.classList.contains("mr-readonly"),
+      });
+      expect(drawn, "no handles, no drags, reasons read-only").to.equal(
+        JSON.stringify({
+          handles: 0,
+          draggable: 0,
+          writable: 0,
+          readOnly: true,
+        }),
+      );
+      altArrow(win, rowIn(c.key), "ArrowDown");
+      drag(win, rowIn(a.key), rowIn(b.key));
+      await idle();
+      expect(stepsInNote(), "no key or drop changes the list").to.deep.equal(
+        before,
+      );
+      // The read state lives in My Library, so the toggle still works.
+      (rowIn(a.key).querySelector(".mr-state") as HTMLElement).click();
+      await idle();
+      const [stateNote] = await stateNotes();
+      const parsed = parseReadState(stateNote.getNote());
+      expect(
+        (parsed as { ok: true; value: ReadStateDoc }).value.states[
+          `user:${a.key}`
+        ]?.state,
+        "the toggle marks the paper",
+      ).to.equal("reading");
+    } finally {
+      container.remove();
+    }
   });
 
   it("names a second list note it ignores", async function () {
