@@ -1,0 +1,102 @@
+.mr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mr-topic {
+  font-weight: 600;
+}
+.mr-steps,
+.mr-unordered {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 20px;
+}
+.mr-step,
+.mr-paper {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  align-items: center;
+  gap: 4px 6px;
+  padding: 4px;
+  border-radius: 5px;
+  border: 1px solid var(--material-border-quinary, transparent);
+}
+.mr-paper {
+  grid-template-columns: auto 1fr;
+  cursor: grab;
+}
+.mr-step .mr-why {
+  grid-column: 1 / -1;
+}
+.mr-handle {
+  cursor: grab;
+  color: var(--fill-secondary);
+}
+.mr-number {
+  font-variant-numeric: tabular-nums;
+  color: var(--fill-secondary);
+}
+.mr-title {
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mr-next {
+  border-color: var(--color-accent);
+}
+.mr-current {
+  background: var(--fill-quinary);
+}
+.mr-state {
+  font-size: 0.9em;
+}
+.mr-state[data-state="reading"] {
+  color: var(--color-accent);
+}
+.mr-state[data-state="read"] {
+  color: var(--fill-secondary);
+}
+.mr-why {
+  resize: vertical;
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.mr-unordered-title,
+.mr-ignored,
+.mr-failure,
+.mr-empty {
+  color: var(--fill-secondary);
+  margin: 0;
+}
+.mr-unordered:empty::after {
+  content: "Drop a step here to take it out of the steps.";
+  color: var(--fill-tertiary);
+  font-size: 0.9em;
+}
+.mr-open-tab {
+  align-self: flex-start;
+}
+.mr-tab-scroll {
+  overflow: auto;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+  background: var(--material-background);
+}
+.mr-tab {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.mr-tab .mr-step {
+  padding: 10px 12px;
+}
+.mr-tab .mr-title {
+  white-space: normal;
+}

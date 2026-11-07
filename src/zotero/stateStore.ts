@@ -5,10 +5,12 @@ import {
   emptyReadState,
   paperId,
   READ_STATE_TAG,
+  stateOf,
   writeReadState,
   type ReadState,
   type ReadStateDoc,
 } from "../format/readState";
+import { emitChange } from "./changes";
 import { paperRefOf, taggedNotes } from "./items";
 import { enqueue } from "./queue";
 import { report } from "./report";
@@ -110,6 +112,7 @@ export function startStateStore(): Promise<void> {
   return enqueue(async () => {
     await load();
     await mirrorAll();
+    emitChange();
   });
 }
 
@@ -136,10 +139,19 @@ export function markItems(
     }
     const ids = items.map((item) => paperId(paperRefOf(item)));
     const next = applyMark(doc, ids, state, new Date().toISOString());
-    if (next === doc) return;
+    if (next === doc) {
+      emitChange();
+      return;
+    }
     await save(next);
     await mirrorAll();
+    emitChange();
   });
+}
+
+/** A paper's read state, as the last read of the state note had it. */
+export function stateOfItem(item: Zotero.Item): ReadState {
+  return stateOf(doc, paperId(paperRefOf(item)));
 }
 
 /** A note changed: it may be, or have been, a state note. */
@@ -149,6 +161,7 @@ export function stateChanged(): Promise<void> {
     await load();
     const after = unreadable ? null : writeReadState(doc);
     if (after !== null && after !== before) await mirrorAll();
+    emitChange();
   });
 }
 

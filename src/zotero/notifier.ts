@@ -1,3 +1,4 @@
+import { emitChange } from "./changes";
 import { clearLists } from "./listStore";
 import { isBusy } from "./queue";
 import { report } from "./report";
@@ -41,6 +42,7 @@ function flush(): void {
     listsDirty = false;
     clearLists();
     refreshStepColumn();
+    emitChange();
   }
   if (stateDirty) {
     stateDirty = false;

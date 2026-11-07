@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { config } from "../../package.json";
+import { READING_LIST_TAG } from "../../src/format/readingList";
 import { READ_STATE_TAG } from "../../src/format/readState";
 
 /** The running plugin: the test bundle's own copy of `src/` never started. */
@@ -221,4 +222,53 @@ export async function withLoggedErrors<T>(
     await idle();
     zotero.logError = real;
   }
+}
+
+/** Drags `source` onto `target` the way the view listens for it. */
+export function drag(win: any, source: Element, target: Element): void {
+  const dataTransfer = new win.DataTransfer();
+  const fire = (node: Element, type: string) =>
+    node.dispatchEvent(
+      new win.DragEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer,
+      }),
+    );
+  fire(source, "dragstart");
+  fire(target, "dragover");
+  fire(target, "drop");
+  fire(source, "dragend");
+}
+
+export function altArrow(
+  win: any,
+  target: Element,
+  key: "ArrowUp" | "ArrowDown",
+): void {
+  target.dispatchEvent(
+    new win.KeyboardEvent("keydown", { key, altKey: true, bubbles: true }),
+  );
+}
+
+/** The keys of a view's rows of one kind, in order. */
+export function rowKeys(view: Element | null, selector: string): string[] {
+  if (!view) return [];
+  return Array.from(view.querySelectorAll(selector)).map(
+    (row) => (row as HTMLElement).dataset.key ?? "",
+  );
+}
+
+export async function makeListNote(
+  collectionID: number,
+  html: string,
+): Promise<Zotero.Item> {
+  const note = new Zotero.Item("note");
+  note.libraryID = Zotero.Libraries.userLibraryID;
+  note.setNote(html);
+  note.addTag(READING_LIST_TAG);
+  note.setCollections([collectionID]);
+  // Unselected, so the note editor does not open it and save it back rewritten.
+  await note.saveTx({ skipSelect: true });
+  return note;
 }

@@ -9,3 +9,7 @@ mark-read =
     .label = Read
 make-reading-list =
     .label = Make Reading List
+section-header =
+    .label = Reading list
+section-sidenav =
+    .tooltiptext = Reading list

@@ -1,10 +1,30 @@
 import { config } from "../package.json";
+import {
+  registerListSection,
+  unregisterListSection,
+} from "./zotero/listSection";
 import { clearLists } from "./zotero/listStore";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
 import { report } from "./zotero/report";
 import { resetStateStore, startStateStore } from "./zotero/stateStore";
 import { registerStepColumn, unregisterStepColumn } from "./zotero/stepColumn";
+
+const STYLESHEET_ID = `${config.addonRef}-stylesheet`;
+
+function installStyles(win: _ZoteroTypes.MainWindow): void {
+  const doc = win.document;
+  if (doc.getElementById(STYLESHEET_ID)) return;
+  const link = doc.createElementNS("http://www.w3.org/1999/xhtml", "link");
+  link.id = STYLESHEET_ID;
+  link.setAttribute("rel", "stylesheet");
+  link.setAttribute("href", `chrome://${config.addonRef}/content/reading.css`);
+  (doc.head ?? doc.documentElement).appendChild(link);
+}
+
+function removeStyles(win: _ZoteroTypes.MainWindow): void {
+  win.document.getElementById(STYLESHEET_ID)?.remove();
+}
 
 async function onStartup(): Promise<void> {
   await Promise.all([
@@ -27,12 +47,19 @@ async function onStartup(): Promise<void> {
   } catch (error) {
     report(error);
   }
+  // Likewise a section that fails to register.
+  try {
+    registerListSection(() => undefined);
+  } catch (error) {
+    report(error);
+  }
   registerMenus();
   addon.data.initialized = true;
 }
 
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   win.MozXULElement.insertFTLIfNeeded(`${config.addonRef}-mainWindow.ftl`);
+  installStyles(win);
 }
 
 async function onMainWindowUnload(
@@ -40,11 +67,13 @@ async function onMainWindowUnload(
 ): Promise<void> {}
 
 async function onShutdown(_appShutdown: boolean): Promise<void> {
+  unregisterListSection();
   unregisterMenus();
   unregisterStepColumn();
   clearLists();
   unregisterNotifier();
   resetStateStore();
+  for (const win of Zotero.getMainWindows()) removeStyles(win);
   addon.data.alive = false;
   delete (Zotero as any)[config.addonInstance];
 }
