@@ -3,7 +3,9 @@ import { planMirror } from "../domain/mirrorPlan";
 import { pickStateNotes } from "../domain/stateNotes";
 import {
   emptyReadState,
+  mergeReadStates,
   paperId,
+  parseReadState,
   READ_STATE_TAG,
   stateOf,
   writeReadState,
@@ -17,6 +19,9 @@ import { enqueue } from "./queue";
 import { report } from "./report";
 
 export class UnreadableStateError extends Refusal {}
+
+const UNREADABLE_MESSAGE =
+  "Your reading-state note cannot be read, so nothing was marked. Fix it or move it to the trash, then mark again.";
 
 let doc: ReadStateDoc = emptyReadState();
 let keeperID: number | null = null;
@@ -76,18 +81,21 @@ async function load(): Promise<void> {
 }
 
 async function save(next: ReadStateDoc): Promise<void> {
-  const html = writeReadState(next);
   const keeper =
     keeperID === null
       ? null
       : (Zotero.Items.get(keeperID) as Zotero.Item | false);
   if (keeper) {
-    keeper.setNote(html);
+    // A sync may have rewritten the note since it was read: merge into it.
+    const current = parseReadState(keeper.getNote());
+    if (!current.ok) throw new UnreadableStateError(UNREADABLE_MESSAGE);
+    next = mergeReadStates(current.value, next);
+    keeper.setNote(writeReadState(next));
     await keeper.saveTx();
   } else {
     const note = new Zotero.Item("note");
     note.libraryID = userLibraryID();
-    note.setNote(html);
+    note.setNote(writeReadState(next));
     note.addTag(READ_STATE_TAG);
     // Unselected: the items list selects a new note, and the note editor
     // then rewrites it, dropping the data block's attribute.
@@ -161,9 +169,7 @@ export function markItems(
     await load();
     if (unreadable) {
       if (stateKey() !== before) emitChange();
-      throw new UnreadableStateError(
-        "Your reading-state note cannot be read, so nothing was marked. Fix it or move it to the trash, then mark again.",
-      );
+      throw new UnreadableStateError(UNREADABLE_MESSAGE);
     }
     const ids = items.map((item) => paperId(paperRefOf(item)));
     const next = applyMark(doc, ids, state, new Date().toISOString());
