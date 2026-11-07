@@ -7,6 +7,7 @@ import {
   type ReadStateDoc,
 } from "../../src/format/readState";
 import {
+  delay,
   eraseStateNotes,
   idle,
   makePaper,
@@ -126,29 +127,50 @@ describe("Note editor round trip", function () {
     ).to.equal("reading");
 
     // Opening another note releases it; the next write keeps its attribute.
+    // The item list restores a selection it cached when a notifier event
+    // began, so a save landing around the select (the editor writing the
+    // state note back) can put the state note back: wait for the list to
+    // settle, select, and select again if the selection did not hold.
     await win.ZoteroPane.collectionsView.selectLibrary(
       Zotero.Libraries.userLibraryID,
     );
-    const picked = await win.ZoteroPane.selectItem(plain.id);
-    const released = await waitFor(
-      () => editor?.item?.id === plain.id && editor.getCurrentInstance(),
-      20_000,
-    );
-    expect(
-      released,
-      `the editor opened the other note: ${editorEvidence(editor)}; ${JSON.stringify(
-        {
+    const attempts: string[] = [];
+    let released: any = null;
+    for (let attempt = 1; attempt <= 5 && !released; attempt++) {
+      await win.ZoteroPane.itemsView.waitForLoad();
+      await idle();
+      const picked = await win.ZoteroPane.selectItem(plain.id);
+      released = await waitFor(
+        () =>
+          editor?.item?.id === plain.id &&
+          win.ZoteroPane.getSelectedItems()
+            .map((item: Zotero.Item) => item.id)
+            .join() === String(plain.id) &&
+          editor.getCurrentInstance(),
+        5_000,
+      );
+      // It must hold, not only flash: a late restore would reopen the state note.
+      if (released) {
+        await delay(500);
+        await idle();
+        if (editor?.item?.id !== plain.id) released = null;
+      }
+      attempts.push(
+        JSON.stringify({
+          attempt,
           picked,
-          plain: plain.id,
-          note: note.id,
-          paper: paper.id,
+          editor: editorEvidence(editor),
           selected: win.ZoteroPane.getSelectedItems().map(
             (item: Zotero.Item) => item.id,
           ),
           tab: win.Zotero_Tabs.selectedID,
           paneMode: win.ZoteroPane.itemPane?.mode,
-        },
-      )}`,
+        }),
+      );
+    }
+    expect(
+      released,
+      `the editor opened the other note (plain ${plain.id}, state note ${note.id}, paper ${paper.id}): ${attempts.join("; ")}`,
     ).to.be.ok;
     await released._initPromise;
     await markThroughMenu(win, [paper.id], "read");
