@@ -7,5 +7,5 @@
     "useUnknownInCatchVariables": true
   },
   "include": ["src", "typings"],
-  "exclude": ["node_modules", ".scaffold", "addon"]
+  "exclude": ["node_modules", ".scaffold", "addon", "typings/i10n.d.ts"]
 }
