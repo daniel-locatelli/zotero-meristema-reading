@@ -10,12 +10,13 @@ import {
   type ReadState,
   type ReadStateDoc,
 } from "../format/readState";
+import { Refusal } from "./alerts";
 import { emitChange } from "./changes";
 import { paperRefOf, taggedNotes } from "./items";
 import { enqueue } from "./queue";
 import { report } from "./report";
 
-export class UnreadableStateError extends Error {}
+export class UnreadableStateError extends Refusal {}
 
 let doc: ReadStateDoc = emptyReadState();
 let keeperID: number | null = null;

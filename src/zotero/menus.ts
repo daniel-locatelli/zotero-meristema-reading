@@ -1,9 +1,10 @@
 import { config } from "../../package.json";
 import type { ReadState } from "../format/readState";
+import { failedWith } from "./alerts";
 import { listFor, makeReadingList } from "./listStore";
 import { openListTab } from "./listTab";
 import { report } from "./report";
-import { markItems, UnreadableStateError } from "./stateStore";
+import { markItems } from "./stateStore";
 
 const ICON = `chrome://${config.addonRef}/content/icons/reading.svg`;
 const registered: string[] = [];
@@ -31,19 +32,6 @@ function contextRegularItems(context: any): Zotero.Item[] {
   );
 }
 
-function alert(message: string): void {
-  Zotero.alert(Zotero.getMainWindow(), config.addonName, message);
-}
-
-function failed(error: unknown): void {
-  if (error instanceof UnreadableStateError) {
-    alert(error.message);
-    return;
-  }
-  report(error);
-  alert("Meristema Reading could not mark the papers. See the error console.");
-}
-
 /** The items the Mark as submenu was opened on, read when its parent showed. */
 let markTargets: Zotero.Item[] = [];
 
@@ -52,7 +40,11 @@ function markEntry(state: ReadState): MenuData {
     menuType: "menuitem",
     l10nID: `${config.addonRef}-mark-${state}`,
     onCommand: () => {
-      void markItems(markTargets, state).catch(failed);
+      void markItems(markTargets, state).catch(
+        failedWith(
+          "Meristema Reading could not mark the papers. See the error console.",
+        ),
+      );
     },
   };
 }
@@ -116,12 +108,11 @@ function collectionMenus(): MenuData[] {
       onCommand: (_event: Event, context: any) => {
         const id = contextCollectionID(context);
         if (id === null) return;
-        void makeReadingList(id, shownKeys(id)).catch((error: unknown) => {
-          report(error);
-          alert(
+        void makeReadingList(id, shownKeys(id)).catch(
+          failedWith(
             "Meristema Reading could not make the reading list. See the error console.",
-          );
-        });
+          ),
+        );
       },
     },
     {

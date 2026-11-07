@@ -10,6 +10,7 @@ import {
   type ReadingListStep,
   type ResolvedList,
 } from "../format/readingList";
+import { Refusal } from "./alerts";
 import { isTaggedNote, libraryLinkOf } from "./items";
 import { enqueue } from "./queue";
 
@@ -130,7 +131,7 @@ export function makeReadingList(
   });
 }
 
-export class UnreadableListError extends Error {}
+export class UnreadableListError extends Refusal {}
 
 /**
  * Edits a folder's steps and rewrites its list note, the readable part rebuilt

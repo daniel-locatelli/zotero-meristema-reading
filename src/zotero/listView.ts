@@ -1,4 +1,3 @@
-import { config } from "../../package.json";
 import {
   nextState,
   placeStep,
@@ -8,10 +7,11 @@ import {
 } from "../domain/listEdits";
 import type { ReadingListStep, ResolvedStep } from "../format/readingList";
 import { nextUp, type ReadState } from "../format/readState";
-import { editList, labelOf, listFor, UnreadableListError } from "./listStore";
+import { failedWith } from "./alerts";
+import { editList, labelOf, listFor } from "./listStore";
 import { enqueue } from "./queue";
 import { report } from "./report";
-import { markItems, stateOfItem, UnreadableStateError } from "./stateStore";
+import { markItems, stateOfItem } from "./stateStore";
 
 const HTML = "http://www.w3.org/1999/xhtml";
 const STATE_LABEL: Record<ReadState, string> = {
@@ -36,22 +36,6 @@ export interface ListViewOptions {
   /** The paper selected in the item list, marked in the sidebar. */
   currentKey: string | null;
   onOpenTab?: () => void;
-}
-
-function failed(error: unknown): void {
-  if (
-    error instanceof UnreadableStateError ||
-    error instanceof UnreadableListError
-  ) {
-    Zotero.alert(Zotero.getMainWindow(), config.addonName, error.message);
-    return;
-  }
-  report(error);
-  Zotero.alert(
-    Zotero.getMainWindow(),
-    config.addonName,
-    "Meristema Reading could not change the reading list. See the error console.",
-  );
 }
 
 function element<K extends keyof HTMLElementTagNameMap>(
@@ -156,6 +140,10 @@ export function renderList(
   const owner = container.ownerDocument;
   if (!owner) return;
   const doc: Document = owner;
+  const failed = failedWith(
+    "Meristema Reading could not change the reading list. See the error console.",
+    doc.defaultView,
+  );
   if (holdsTyping(container, doc)) {
     deferred.set(container, { collectionID, options });
     return;
