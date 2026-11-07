@@ -88,7 +88,9 @@ export async function makePaper(
   item.setField("title", title);
   if (doi) item.setField("DOI", doi);
   if (collectionID) item.setCollections([collectionID]);
-  await item.saveTx();
+  // Unselected: Zotero selects a new item shown in the item list once its
+  // view refreshes, which can land after a case has selected another paper.
+  await item.saveTx({ skipSelect: true });
   return item;
 }
 

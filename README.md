@@ -16,6 +16,13 @@ Meristema Reading is a Zotero 9 and 10 plugin built from this repo.
   holding the folder's papers in the order the item list shows them.
 - **Step** (column picker): a paper's step in the selected folder's list.
   Sorting by it gives the reading order.
+- **Reading list** (item pane, for a paper in a list folder): the steps in
+  order, next up outlined. Drag a step's handle, or press Alt+Up and Alt+Down,
+  to reorder it. Drop a paper from "Not in the steps" onto a step to add it,
+  and drop a step there to take it out. Click a state to move it through
+  Unread, Reading and Read, and type a reason under a step.
+- **Open Reading List** (folder menu, or Open as Tab in the section): the same
+  list as full-width cards, reasons in full.
 
 `npm start` runs it in a dev Zotero (copy `.env.example` to `.env` first),
 `npm test` runs the Zotero suite, and `npm run check` runs prettier, eslint,

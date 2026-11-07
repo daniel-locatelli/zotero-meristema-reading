@@ -83,7 +83,14 @@
 .mr-open-tab {
   align-self: flex-start;
 }
+.mr-tab-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 .mr-tab-scroll {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   height: 100%;
   padding: 16px;

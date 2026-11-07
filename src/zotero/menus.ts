@@ -1,6 +1,7 @@
 import { config } from "../../package.json";
 import type { ReadState } from "../format/readState";
 import { listFor, makeReadingList } from "./listStore";
+import { openListTab } from "./listTab";
 import { report } from "./report";
 import { markItems, UnreadableStateError } from "./stateStore";
 
@@ -121,6 +122,21 @@ function collectionMenus(): MenuData[] {
             "Meristema Reading could not make the reading list. See the error console.",
           );
         });
+      },
+    },
+    {
+      menuType: "menuitem",
+      l10nID: `${config.addonRef}-open-reading-list`,
+      icon: ICON,
+      onShowing: (_event: Event, context: any) => {
+        const id = contextCollectionID(context);
+        const available = id !== null && listFor(id) !== null;
+        context.setVisible(available);
+        context.setEnabled(available);
+      },
+      onCommand: (_event: Event, context: any) => {
+        const id = contextCollectionID(context);
+        if (id !== null) openListTab(id);
       },
     },
   ];

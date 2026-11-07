@@ -4,6 +4,12 @@ import {
   unregisterListSection,
 } from "./zotero/listSection";
 import { clearLists } from "./zotero/listStore";
+import {
+  closeListTabs,
+  installTabHooks,
+  openListTab,
+  startListTabs,
+} from "./zotero/listTab";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
 import { report } from "./zotero/report";
@@ -49,7 +55,8 @@ async function onStartup(): Promise<void> {
   }
   // Likewise a section that fails to register.
   try {
-    registerListSection(() => undefined);
+    registerListSection((collectionID) => openListTab(collectionID));
+    startListTabs();
   } catch (error) {
     report(error);
   }
@@ -60,6 +67,7 @@ async function onStartup(): Promise<void> {
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   win.MozXULElement.insertFTLIfNeeded(`${config.addonRef}-mainWindow.ftl`);
   installStyles(win);
+  installTabHooks(win);
 }
 
 async function onMainWindowUnload(
@@ -67,6 +75,7 @@ async function onMainWindowUnload(
 ): Promise<void> {}
 
 async function onShutdown(_appShutdown: boolean): Promise<void> {
+  closeListTabs();
   unregisterListSection();
   unregisterMenus();
   unregisterStepColumn();

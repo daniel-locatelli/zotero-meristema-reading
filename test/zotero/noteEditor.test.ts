@@ -129,14 +129,26 @@ describe("Note editor round trip", function () {
     await win.ZoteroPane.collectionsView.selectLibrary(
       Zotero.Libraries.userLibraryID,
     );
-    await win.ZoteroPane.selectItem(plain.id);
+    const picked = await win.ZoteroPane.selectItem(plain.id);
     const released = await waitFor(
       () => editor?.item?.id === plain.id && editor.getCurrentInstance(),
       20_000,
     );
     expect(
       released,
-      `the editor opened the other note: ${editorEvidence(editor)}`,
+      `the editor opened the other note: ${editorEvidence(editor)}; ${JSON.stringify(
+        {
+          picked,
+          plain: plain.id,
+          note: note.id,
+          paper: paper.id,
+          selected: win.ZoteroPane.getSelectedItems().map(
+            (item: Zotero.Item) => item.id,
+          ),
+          tab: win.Zotero_Tabs.selectedID,
+          paneMode: win.ZoteroPane.itemPane?.mode,
+        },
+      )}`,
     ).to.be.ok;
     await released._initPromise;
     await markThroughMenu(win, [paper.id], "read");

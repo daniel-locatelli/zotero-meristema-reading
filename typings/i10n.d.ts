@@ -8,5 +8,6 @@ export type FluentMessageId =
   | 'mark-reading'
   | 'mark-submenu'
   | 'mark-unread'
+  | 'open-reading-list'
   | 'section-header'
   | 'section-sidenav';

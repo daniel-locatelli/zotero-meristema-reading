@@ -98,9 +98,15 @@ describe("The Reading list section", function () {
       c.key,
     ]);
     expect(rowKeys(view(), ".mr-next"), "next up").to.deep.equal([a.key]);
-    expect(rowKeys(view(), ".mr-current"), "the selected paper").to.deep.equal([
-      b.key,
-    ]);
+    // The section draws once per selected paper; wait for the one picked here.
+    const current = await waitFor(
+      () => rowKeys(view(), ".mr-current").join() === b.key,
+      10_000,
+    );
+    expect(
+      current,
+      `the selected paper ${b.key} is marked; marked ${rowKeys(view(), ".mr-current")}, a ${a.key}, c ${c.key}, selected ${win.ZoteroPane.getSelectedItems().map((item: Zotero.Item) => item.key)}`,
+    ).to.equal(true);
     expect(view()!.querySelector(".mr-topic")?.textContent).to.equal(TOPIC);
     expect(
       (row(a.key).querySelector(".mr-why") as HTMLTextAreaElement).value,

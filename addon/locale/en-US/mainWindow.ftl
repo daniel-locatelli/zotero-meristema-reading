@@ -13,3 +13,5 @@ section-header =
     .label = Reading list
 section-sidenav =
     .tooltiptext = Reading list
+open-reading-list =
+    .label = Open Reading List
