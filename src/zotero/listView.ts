@@ -145,6 +145,8 @@ export function renderList(
     return;
   }
   deferred.delete(container);
+  // A drag whose source row is redrawn away gets no dragend.
+  dragged = null;
   const keyToFocus = refocus.has(container)
     ? { key: refocus.get(container)!, part: "row" as const }
     : focusedKey(container, doc);
@@ -221,6 +223,12 @@ export function renderList(
     if (key === next) row.classList.add("mr-next");
     if (key === options.currentKey) row.classList.add("mr-current");
     row.addEventListener("dragstart", (event: DragEvent) => {
+      // Only the handle or an unordered paper's row: text dragged out of a
+      // reason bubbles here too.
+      const source = event.target as Element | null;
+      const fromHandle = Boolean(source?.classList?.contains("mr-handle"));
+      const fromPaper = source === row && row.classList.contains("mr-paper");
+      if (!fromHandle && !fromPaper) return;
       dragged = key;
       event.dataTransfer?.setData("text/plain", key);
       if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";

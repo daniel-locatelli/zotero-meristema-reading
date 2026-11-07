@@ -164,6 +164,16 @@ describe("The Reading list section", function () {
     expect(rowKeys(view(), ".mr-paper")).to.deep.equal([a.key]);
   });
 
+  it("starts no drag from a reason's text", async function () {
+    const why = row(b.key).querySelector(".mr-why")!;
+    drag(win, why, view()!.querySelector(".mr-unordered")!);
+    await idle();
+    expect(
+      stepsInNote().map((step) => step.key),
+      "dragging text out of a reason moves no step",
+    ).to.deep.equal([c.key, b.key]);
+  });
+
   it("saves an edited reason", async function () {
     const why = row(b.key).querySelector(".mr-why") as HTMLTextAreaElement;
     why.value = 'Read <this> & "that"';
