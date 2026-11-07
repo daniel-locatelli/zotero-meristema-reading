@@ -42,10 +42,24 @@ export function shown(popup: Element): Promise<void> {
  * trusted, after the popups close: only that second event runs the plugin's
  * `onCommand`, whose listener was added before this one.
  */
-export function command(element: Element): Promise<void> {
+export function command(element: Element, timeoutMs = 10_000): Promise<void> {
   const win = element.ownerDocument?.defaultView as any;
-  const reached = new Promise<void>((resolve) => {
-    element.addEventListener("command", () => resolve(), { once: true });
+  const reached = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `no command event reached ${element.getAttribute("data-l10n-id")} within ${timeoutMs} ms`,
+        ),
+      );
+    }, timeoutMs);
+    element.addEventListener(
+      "command",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
   });
   element.dispatchEvent(new win.Event("command", { bubbles: true }));
   return reached;
@@ -82,6 +96,12 @@ async function allStateNoteIDs(): Promise<number[]> {
   const tagID = Zotero.Tags.getID(READ_STATE_TAG);
   if (!tagID) return [];
   return Zotero.Tags.getTagItems(Zotero.Libraries.userLibraryID, tagID);
+}
+
+/** Every note carrying the state tag in My Library, trashed ones included. */
+export async function allStateNotes(): Promise<Zotero.Item[]> {
+  const items = await Zotero.Items.getAsync(await allStateNoteIDs());
+  return items.filter(Boolean);
 }
 
 /** The state notes the plugin reads: standalone and not in the trash. */
@@ -139,4 +159,63 @@ export async function collectionMenuEntry(
   popup.openPopup(null, "after_start", 0, 0, false, false);
   await showing;
   return { popup, entry: popup.querySelector(`[data-l10n-id="${l10nID}"]`) };
+}
+
+export interface Alert {
+  title: string;
+  text: string;
+}
+
+/**
+ * Runs `body` with `Services.prompt` stubbed, so the plugin's
+ * `Zotero.alert(...)` is recorded rather than opening a modal that would
+ * block the suite. The stub stays until the plugin is idle, since a menu
+ * command runs after `body` has returned.
+ */
+export async function withAlerts<T>(
+  body: (alerts: Alert[]) => Promise<T>,
+): Promise<T> {
+  const alerts: Alert[] = [];
+  const services = Services as any;
+  const own = Object.getOwnPropertyDescriptor(services, "prompt");
+  const stub = {
+    alert(_win: unknown, title: string, text: string): void {
+      alerts.push({ title, text });
+    },
+  };
+  Object.defineProperty(services, "prompt", {
+    configurable: true,
+    value: stub,
+  });
+  try {
+    // Zotero.alert reads Services in its own global: make sure it is this one.
+    const theirs = (Cu as any).getGlobalForObject(Zotero.alert).Services;
+    expect(
+      theirs.prompt === stub,
+      `Zotero.alert's Services is the stubbed one (same object: ${theirs === Services})`,
+    ).to.equal(true);
+    return await body(alerts);
+  } finally {
+    await idle();
+    if (own) Object.defineProperty(services, "prompt", own);
+    else delete services.prompt;
+  }
+}
+
+/** Runs `body` with `Zotero.logError` recording what the plugin reports. */
+export async function withLoggedErrors<T>(
+  body: (errors: string[]) => Promise<T>,
+): Promise<T> {
+  const errors: string[] = [];
+  const zotero = Zotero as any;
+  const real = zotero.logError;
+  zotero.logError = (error: unknown) => {
+    errors.push(String((error as Error)?.message ?? error));
+  };
+  try {
+    return await body(errors);
+  } finally {
+    await idle();
+    zotero.logError = real;
+  }
 }

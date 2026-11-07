@@ -1,6 +1,7 @@
 import { config } from "../package.json";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
+import { report } from "./zotero/report";
 import { resetStateStore, startStateStore } from "./zotero/stateStore";
 
 async function onStartup(): Promise<void> {
@@ -11,7 +12,13 @@ async function onStartup(): Promise<void> {
   ]);
   for (const win of Zotero.getMainWindows()) await onMainWindowLoad(win);
   registerNotifier();
-  await startStateStore();
+  // A failed first load leaves the store empty; the next state event or mark
+  // reads the notes again, so the menus are offered either way.
+  try {
+    await startStateStore();
+  } catch (error) {
+    report(error);
+  }
   registerMenus();
   addon.data.initialized = true;
 }

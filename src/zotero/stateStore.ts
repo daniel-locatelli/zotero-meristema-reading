@@ -11,6 +11,7 @@ import {
 } from "../format/readState";
 import { paperRefOf, taggedNotes } from "./items";
 import { enqueue } from "./queue";
+import { report } from "./report";
 
 export class UnreadableStateError extends Error {}
 
@@ -90,7 +91,12 @@ async function mirror(items: Zotero.Item[]): Promise<void> {
     const item = Zotero.Items.get(change.id) as Zotero.Item;
     for (const tag of change.add) item.addTag(tag);
     for (const tag of change.remove) item.removeTag(tag);
-    await item.saveTx({ skipDateModifiedUpdate: true });
+    // One paper that cannot be saved must not keep the rest from their tags.
+    try {
+      await item.saveTx({ skipDateModifiedUpdate: true });
+    } catch (error) {
+      report(error);
+    }
   }
 }
 

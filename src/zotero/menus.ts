@@ -29,12 +29,17 @@ function contextRegularItems(context: any): Zotero.Item[] {
   );
 }
 
+function alert(message: string): void {
+  Zotero.alert(Zotero.getMainWindow(), config.addonName, message);
+}
+
 function failed(error: unknown): void {
   if (error instanceof UnreadableStateError) {
-    Zotero.alert(Zotero.getMainWindow(), "Meristema Reading", error.message);
+    alert(error.message);
     return;
   }
   report(error);
+  alert("Meristema Reading could not mark the papers. See the error console.");
 }
 
 /** The items the Mark as submenu was opened on, read when its parent showed. */

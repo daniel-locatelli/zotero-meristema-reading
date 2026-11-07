@@ -31,6 +31,8 @@ async function stateNote(html: string): Promise<Zotero.Item> {
   return note;
 }
 
+// The cases share the two papers and run in order: "un-marks" undoes the
+// first case's marks, and "overwrites" relies on the merge case's Reading.
 describe("Read state", function () {
   this.timeout(60_000);
   const DOI_ID = "doi:10.5555/meristema-reading.1";
