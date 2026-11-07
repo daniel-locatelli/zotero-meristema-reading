@@ -31,7 +31,6 @@ export interface ReadingAPI {
 
 class Addon {
   public data: {
-    alive: boolean;
     config: typeof config;
     env: "development" | "production";
     initialized: boolean;
@@ -41,7 +40,7 @@ class Addon {
   public api: ReadingAPI;
 
   constructor() {
-    this.data = { alive: true, config, env: __env__, initialized: false };
+    this.data = { config, env: __env__, initialized: false };
     this.hooks = hooks;
     this.api = Object.freeze({
       whenIdle,

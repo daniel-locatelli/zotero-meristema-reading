@@ -12,6 +12,7 @@ import {
 } from "./zotero/listTab";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
+import { stopQueue } from "./zotero/queue";
 import { report } from "./zotero/report";
 import { resetStateStore, startStateStore } from "./zotero/stateStore";
 import { registerStepColumn, unregisterStepColumn } from "./zotero/stepColumn";
@@ -79,12 +80,17 @@ async function onShutdown(_appShutdown: boolean): Promise<void> {
   unregisterListSection();
   unregisterMenus();
   unregisterStepColumn();
-  clearLists();
   unregisterNotifier();
-  resetStateStore();
   for (const win of Zotero.getMainWindows()) removeStyles(win);
-  addon.data.alive = false;
   delete (Zotero as any)[config.addonInstance];
+  // Work already queued (a mark the reader just made) finishes first, so
+  // resetting the store cannot make it write a second state note.
+  void stopQueue()
+    .then(() => {
+      clearLists();
+      resetStateStore();
+    })
+    .catch(report);
 }
 
 export default { onStartup, onMainWindowLoad, onMainWindowUnload, onShutdown };
