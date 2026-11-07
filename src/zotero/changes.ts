@@ -4,6 +4,7 @@ import { report } from "./report";
 const EMIT_DELAY_MS = 20;
 const listeners = new Set<() => void>();
 let emitTimer: ReturnType<typeof setTimeout> | null = null;
+let emitted = 0;
 
 /** Calls `listener` after the stores change; returns the unsubscribe. */
 export function onChange(listener: () => void): () => void {
@@ -13,6 +14,7 @@ export function onChange(listener: () => void): () => void {
 
 function emitNow(): void {
   emitTimer = null;
+  emitted++;
   for (const listener of listeners) {
     try {
       listener();
@@ -32,6 +34,11 @@ export function emitChange(): void {
 
 export function isChangePending(): boolean {
   return emitTimer !== null;
+}
+
+/** How many times the views have been told of a change, for the Zotero suite. */
+export function changesEmitted(): number {
+  return emitted;
 }
 
 /** Drops a change not yet told, for shutdown. */

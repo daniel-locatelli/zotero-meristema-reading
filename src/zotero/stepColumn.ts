@@ -4,6 +4,7 @@ import { listFor } from "./listStore";
 import { report } from "./report";
 
 let dataKey: string | null = null;
+let refreshes = 0;
 
 /** A paper's cell data in a folder's list; empty when the folder has none. */
 export function stepCell(itemKey: string, collectionID: number): string {
@@ -27,6 +28,8 @@ export async function registerStepColumn(): Promise<void> {
     showInColumnPicker: true,
     zoteroPersist: ["width", "ordinal", "hidden", "sortDirection"],
     dataProvider: (item: Zotero.Item) => {
+      // Zotero passes the provider only the item and the column's key, not
+      // the tree or its window, so the folder comes from the active pane.
       const collectionID =
         Zotero.getActiveZoteroPane()?.getSelectedCollection(true);
       return collectionID ? stepCell(item.key, collectionID) : "";
@@ -47,7 +50,12 @@ export async function registerStepColumn(): Promise<void> {
   dataKey = typeof key === "string" ? key : null;
 }
 
+/**
+ * Draws the column again. Zotero re-queries the item list and restores its
+ * selection for this, so callers ask only when a cell changed.
+ */
 export function refreshStepColumn(): void {
+  refreshes++;
   try {
     Zotero.ItemTreeManager.refreshColumns();
   } catch (error) {
@@ -63,4 +71,9 @@ export function unregisterStepColumn(): void {
     report(error);
   }
   dataKey = null;
+}
+
+/** How many times the column was drawn again, for the Zotero suite. */
+export function stepColumnRefreshes(): number {
+  return refreshes;
 }

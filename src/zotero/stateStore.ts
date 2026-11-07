@@ -22,6 +22,11 @@ let doc: ReadStateDoc = emptyReadState();
 let keeperID: number | null = null;
 let unreadable = false;
 
+/** What the views draw of the read state, to tell whether it changed. */
+function stateKey(): string {
+  return unreadable ? "unreadable" : writeReadState(doc);
+}
+
 function userLibraryID(): number {
   return Zotero.Libraries.userLibraryID;
 }
@@ -132,8 +137,10 @@ export function markItems(
   state: ReadState,
 ): Promise<void> {
   return enqueue(async () => {
+    const before = stateKey();
     await load();
     if (unreadable) {
+      if (stateKey() !== before) emitChange();
       throw new UnreadableStateError(
         "Your reading-state note cannot be read, so nothing was marked. Fix it or move it to the trash, then mark again.",
       );
@@ -141,7 +148,7 @@ export function markItems(
     const ids = items.map((item) => paperId(paperRefOf(item)));
     const next = applyMark(doc, ids, state, new Date().toISOString());
     if (next === doc) {
-      emitChange();
+      if (stateKey() !== before) emitChange();
       return;
     }
     await save(next);
@@ -158,10 +165,10 @@ export function stateOfItem(item: Zotero.Item): ReadState {
 /** A note changed: it may be, or have been, a state note. */
 export function stateChanged(): Promise<void> {
   return enqueue(async () => {
-    const before = unreadable ? null : writeReadState(doc);
+    const before = stateKey();
     await load();
-    const after = unreadable ? null : writeReadState(doc);
-    if (after !== null && after !== before) await mirrorAll();
+    if (stateKey() === before) return;
+    await mirrorAll();
     emitChange();
   });
 }

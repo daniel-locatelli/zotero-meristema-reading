@@ -42,6 +42,46 @@ describe("Reading lists", function () {
     await win.ZoteroPane.search();
   }
 
+  /** The Step column in the item list's tree, made visible for the case. */
+  function stepColumn(): any {
+    const key = plugin().api.stepColumnKey() as string;
+    return win.ZoteroPane.itemsView.tree?._columns?._columns?.find(
+      (column: any) => column.dataKey === key,
+    );
+  }
+
+  /** The Step cell the item list draws for `item`, read from its row. */
+  function renderedStep(item: Zotero.Item): string | null {
+    const key = plugin().api.stepColumnKey() as string;
+    const view = win.ZoteroPane.itemsView;
+    const index = view.getRowIndexByID(item.id);
+    if (index === false || index === undefined) return null;
+    const row = view.tree?._jsWindow?.getElementByIndex(index) as
+      HTMLElement | undefined;
+    const cell = row
+      ? Array.from(row.children).find((node) =>
+          (node as Element).classList.contains(key),
+        )
+      : undefined;
+    return cell ? (cell.textContent ?? "") : null;
+  }
+
+  function writeSteps(keys: string[], why = ""): Promise<unknown> {
+    const [note] = listNotes();
+    note.setNote(
+      writeReadingList(
+        {
+          version: 1,
+          topic: TOPIC,
+          steps: keys.map((key) => ({ key, why })),
+        },
+        (key) => key,
+        { kind: "user" },
+      ),
+    );
+    return note.saveTx();
+  }
+
   function cells(): string[] {
     return [bravo, alpha, charlie].map(
       (item) => plugin().api.stepCell(item.id, collection.id) as string,
@@ -160,6 +200,103 @@ describe("Reading lists", function () {
       Boolean(key) && Zotero.ItemTreeManager.isCustomColumn(key),
       `the Step column is registered (${key})`,
     ).to.equal(true);
+  });
+
+  it("draws each paper's step in the item list's Step column", async function () {
+    await win.ZoteroPane.collectionsView.selectCollection(collection.id);
+    await win.ZoteroPane.itemsView.waitForLoad();
+    const column = stepColumn();
+    expect(column, "the Step column in the item list").to.exist;
+    const wasHidden = Boolean(column.hidden);
+    const toggle = () =>
+      win.ZoteroPane.itemsView.tree._columns.toggleHidden(
+        win.ZoteroPane.itemsView.tree._columns._columns.indexOf(stepColumn()),
+      );
+    // The column picker persists `hidden`: show it, and put it back after.
+    if (wasHidden) toggle();
+    try {
+      const drawn = () =>
+        [bravo, alpha, charlie].map((item) => renderedStep(item));
+      const first = await waitFor(
+        () => drawn().join() === "1,2," && drawn(),
+        10_000,
+      );
+      expect(
+        first,
+        `Bravo 1, alpha 2, Charlie blank; drawn ${JSON.stringify(drawn())}`,
+      ).to.deep.equal(["1", "2", ""]);
+      // A new order changes the cells, so the column is drawn again.
+      await writeSteps([alpha.key, bravo.key]);
+      await idle();
+      const second = await waitFor(
+        () => drawn().join() === "2,1," && drawn(),
+        10_000,
+      );
+      expect(
+        second,
+        `Bravo 2, alpha 1, Charlie blank; drawn ${JSON.stringify(drawn())}`,
+      ).to.deep.equal(["2", "1", ""]);
+    } finally {
+      if (Boolean(stepColumn()?.hidden) !== wasHidden) toggle();
+      await writeSteps([bravo.key, alpha.key]);
+      await idle();
+    }
+  });
+
+  it("redraws the column and the views only when a cell or a list changes", async function () {
+    const api = plugin().api;
+    // An unrelated folder and paper, and a child note of a listed paper.
+    const other = new Zotero.Collection();
+    other.libraryID = Zotero.Libraries.userLibraryID;
+    other.name = "Unrelated folder";
+    await other.saveTx();
+    const stranger = await makePaper("Unrelated paper", undefined, other.id);
+    const child = new Zotero.Item("note");
+    child.libraryID = Zotero.Libraries.userLibraryID;
+    child.parentID = bravo.id;
+    child.setNote("<p>A child note</p>");
+    await child.saveTx({ skipSelect: true });
+    await idle();
+    try {
+      const counts = () => ({
+        column: api.columnRefreshes() as number,
+        views: api.changesEmitted() as number,
+      });
+      const before = counts();
+      child.setNote("<p>A child note, edited</p>");
+      await child.saveTx();
+      stranger.setField("title", "Unrelated paper, renamed");
+      await stranger.saveTx();
+      await idle();
+      expect(counts(), "after unrelated edits").to.deep.equal(before);
+
+      // A reason changes the list but no cell: the views, not the column.
+      await writeSteps([bravo.key, alpha.key], "a reason");
+      await idle();
+      const afterReason = counts();
+      expect(afterReason.column, "column after a reason").to.equal(
+        before.column,
+      );
+      expect(afterReason.views, "views after a reason").to.be.greaterThan(
+        before.views,
+      );
+
+      // A new order changes the cells: both.
+      await writeSteps([alpha.key, bravo.key], "a reason");
+      await idle();
+      const afterOrder = counts();
+      expect(afterOrder.column, "column after a new order").to.be.greaterThan(
+        afterReason.column,
+      );
+      expect(afterOrder.views, "views after a new order").to.be.greaterThan(
+        afterReason.views,
+      );
+    } finally {
+      await Zotero.Items.erase([child.id, stranger.id]);
+      await other.eraseTx();
+      await writeSteps([bravo.key, alpha.key]);
+      await idle();
+    }
   });
 
   it("drops a paper from the steps once it leaves the folder", async function () {

@@ -1,13 +1,22 @@
 import { config } from "../package.json";
 import hooks from "./hooks";
+import { changesEmitted } from "./zotero/changes";
 import { whenIdle } from "./zotero/notifier";
-import { stepCell, stepColumnKey } from "./zotero/stepColumn";
+import {
+  stepCell,
+  stepColumnKey,
+  stepColumnRefreshes,
+} from "./zotero/stepColumn";
 
 /** What the Zotero suite reads: its bundle is a second copy of the plugin. */
 export interface ReadingAPI {
   whenIdle(): Promise<void>;
   stepCell(itemID: number, collectionID: number): string;
   stepColumnKey(): string | null;
+  /** How many times the Step column was drawn again. */
+  columnRefreshes(): number;
+  /** How many times the views were told the stores changed. */
+  changesEmitted(): number;
 }
 
 class Addon {
@@ -31,6 +40,8 @@ class Addon {
         return item ? stepCell(item.key, collectionID) : "";
       },
       stepColumnKey,
+      columnRefreshes: stepColumnRefreshes,
+      changesEmitted,
     });
   }
 }

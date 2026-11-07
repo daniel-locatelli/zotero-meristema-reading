@@ -1,5 +1,5 @@
 import { cancelChange, emitChange, isChangePending } from "./changes";
-import { clearLists } from "./listStore";
+import { reconcileLists } from "./listStore";
 import { isBusy } from "./queue";
 import { report } from "./report";
 import { itemsChanged, stateChanged } from "./stateStore";
@@ -11,6 +11,8 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let stateDirty = false;
 let listsDirty = false;
 const touched = new Set<number>();
+/** Folders an event named, read again even when no view was told of them. */
+const touchedFolders = new Set<number>();
 
 /** The item an event names; `item-tag` ids read "itemID-tagID". */
 function itemIDOf(type: string, id: number | string): number {
@@ -25,12 +27,24 @@ function notify(
   // Any library event can change a folder's list: a paper renamed, filed,
   // trashed or merged, or a note edited.
   listsDirty = true;
+  if (type === "collection") {
+    for (const raw of ids) touchedFolders.add(Number(raw));
+  }
+  // `collection-item` ids read "collectionID-itemID".
+  if (type === "collection-item") {
+    for (const raw of ids)
+      touchedFolders.add(Number(String(raw).split("-")[0]));
+  }
   if (type === "item" || type === "item-tag") {
     for (const raw of ids) {
       const item = Zotero.Items.get(itemIDOf(type, raw)) as Zotero.Item | false;
       // A deleted item can no longer say what it was: it may have been a state note.
       if (!item || item.isNote()) stateDirty = true;
       else if (item.isRegularItem()) touched.add(item.id);
+      // A note may be, or have been, a folder's list.
+      if (item && item.isNote() && item.isTopLevelItem()) {
+        for (const id of item.getCollections()) touchedFolders.add(id);
+      }
     }
   }
   if (!flushTimer) flushTimer = setTimeout(flush, FLUSH_DELAY_MS);
@@ -40,9 +54,17 @@ function flush(): void {
   flushTimer = null;
   if (listsDirty) {
     listsDirty = false;
-    clearLists();
-    refreshStepColumn();
-    emitChange();
+    const folders = [...touchedFolders];
+    touchedFolders.clear();
+    try {
+      // Zotero's column refresh re-queries the item list and restores its
+      // selection, and a redraw cancels a drag: each only when needed.
+      const changes = reconcileLists(folders);
+      if (changes.cells) refreshStepColumn();
+      if (changes.lists) emitChange();
+    } catch (error) {
+      report(error);
+    }
   }
   if (stateDirty) {
     stateDirty = false;
@@ -70,6 +92,7 @@ export function unregisterNotifier(): void {
   stateDirty = false;
   listsDirty = false;
   touched.clear();
+  touchedFolders.clear();
   cancelChange();
   if (observerID) Zotero.Notifier.unregisterObserver(observerID);
   observerID = null;
