@@ -3,6 +3,7 @@ import type { ReadState } from "../format/readState";
 import { failedWith } from "./alerts";
 import { listFor, makeReadingList } from "./listStore";
 import { openListTab } from "./listTab";
+import { libraryEditable } from "./listView";
 import { report } from "./report";
 import { markItems } from "./stateStore";
 
@@ -23,6 +24,13 @@ function contextValue(context: any, key: string): any {
   }
 }
 
+/** The main window a menu was opened in. */
+function contextWindow(context: any): _ZoteroTypes.MainWindow {
+  const menu = contextValue(context, "menuElem") as Element | undefined;
+  return (menu?.ownerDocument?.defaultView ??
+    Zotero.getMainWindow()) as _ZoteroTypes.MainWindow;
+}
+
 /** The regular, untrashed items the user right-clicked. */
 function contextRegularItems(context: any): Zotero.Item[] {
   const items = contextValue(context, "items");
@@ -32,17 +40,19 @@ function contextRegularItems(context: any): Zotero.Item[] {
   );
 }
 
-/** The items the Mark as submenu was opened on, read when its parent showed. */
-let markTargets: Zotero.Item[] = [];
-
+/**
+ * A Mark as entry. Zotero hands the submenu's entries the context the item
+ * menu was built with, so the command reads the right-clicked items from it.
+ */
 function markEntry(state: ReadState): MenuData {
   return {
     menuType: "menuitem",
     l10nID: `${config.addonRef}-mark-${state}`,
-    onCommand: () => {
-      void markItems(markTargets, state).catch(
+    onCommand: (_event: Event, context: any) => {
+      void markItems(contextRegularItems(context), state).catch(
         failedWith(
           "Meristema Reading could not mark the papers. See the error console.",
+          contextWindow(context),
         ),
       );
     },
@@ -56,8 +66,7 @@ function itemMenus(): MenuData[] {
       l10nID: `${config.addonRef}-mark-submenu`,
       icon: ICON,
       onShowing: (_event: Event, context: any) => {
-        markTargets = contextRegularItems(context);
-        const available = markTargets.length > 0;
+        const available = contextRegularItems(context).length > 0;
         context.setVisible(available);
         context.setEnabled(available);
       },
@@ -82,13 +91,15 @@ function contextCollectionID(context: any): number | null {
 function canMakeList(collectionID: number): boolean {
   const collection = Zotero.Collections.get(collectionID);
   if (!collection) return false;
-  const library = Zotero.Libraries.get(collection.libraryID) as any;
-  return Boolean(library?.editable) && !listFor(collectionID);
+  return libraryEditable(collection.libraryID) && !listFor(collectionID);
 }
 
-/** The item list's order, when it shows this folder. */
-function shownKeys(collectionID: number): string[] | null {
-  const pane = Zotero.getActiveZoteroPane();
+/** The item list's order, when the menu's window shows this folder. */
+function shownKeys(
+  collectionID: number,
+  win: _ZoteroTypes.MainWindow,
+): string[] | null {
+  const pane = win.ZoteroPane;
   if (pane?.getSelectedCollection(true) !== collectionID) return null;
   return (pane.getSortedItems() as Zotero.Item[]).map((item) => item.key);
 }
@@ -108,9 +119,11 @@ function collectionMenus(): MenuData[] {
       onCommand: (_event: Event, context: any) => {
         const id = contextCollectionID(context);
         if (id === null) return;
-        void makeReadingList(id, shownKeys(id)).catch(
+        const win = contextWindow(context);
+        void makeReadingList(id, shownKeys(id, win)).catch(
           failedWith(
             "Meristema Reading could not make the reading list. See the error console.",
+            win,
           ),
         );
       },
@@ -127,7 +140,7 @@ function collectionMenus(): MenuData[] {
       },
       onCommand: (_event: Event, context: any) => {
         const id = contextCollectionID(context);
-        if (id !== null) openListTab(id);
+        if (id !== null) openListTab(id, contextWindow(context));
       },
     },
   ];

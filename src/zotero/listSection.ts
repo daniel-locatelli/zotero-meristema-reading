@@ -56,7 +56,7 @@ function onStoresChanged(): void {
 }
 
 export function registerListSection(
-  openTab: (collectionID: number) => void,
+  openTab: (collectionID: number, win: _ZoteroTypes.MainWindow) => void,
 ): void {
   if (paneKey) return;
   paneKey = Zotero.ItemPaneManager.registerSection({
@@ -120,7 +120,11 @@ export function registerListSection(
         mode: "sidebar",
         currentKey: item.key,
         editable: Boolean(collection) && libraryEditable(collection.libraryID),
-        onOpenTab: () => openTab(collectionID),
+        onOpenTab: () => {
+          const win = (body.ownerDocument?.defaultView ??
+            Zotero.getMainWindow()) as _ZoteroTypes.MainWindow;
+          openTab(collectionID, win);
+        },
       });
     },
   } as any);

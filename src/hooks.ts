@@ -56,7 +56,7 @@ async function onStartup(): Promise<void> {
   }
   // Likewise a section that fails to register.
   try {
-    registerListSection((collectionID) => openListTab(collectionID));
+    registerListSection((collectionID, win) => openListTab(collectionID, win));
     startListTabs();
   } catch (error) {
     report(error);

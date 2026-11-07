@@ -8,7 +8,11 @@ const TAB_TYPE = `${config.addonRef}-list`;
 const HOOK_MARKER = "__meristemaReadingTabHooks";
 const views = new Map<
   string,
-  { container: HTMLElement; collectionID: number }
+  {
+    container: HTMLElement;
+    collectionID: number;
+    win: _ZoteroTypes.MainWindow;
+  }
 >();
 let unsubscribe: (() => void) | null = null;
 
@@ -108,7 +112,7 @@ export function openListTab(
   ) as HTMLElement;
   scroll.append(body);
   container.append(scroll);
-  views.set(tabID, { container: body, collectionID });
+  views.set(tabID, { container: body, collectionID, win });
   render(tabID);
 }
 
@@ -122,13 +126,11 @@ export function startListTabs(): void {
 export function closeListTabs(): void {
   unsubscribe?.();
   unsubscribe = null;
-  for (const win of Zotero.getMainWindows()) {
-    for (const tabID of views.keys()) {
-      try {
-        win.Zotero_Tabs.close(tabID);
-      } catch (error) {
-        report(error);
-      }
+  for (const [tabID, view] of [...views]) {
+    try {
+      view.win.Zotero_Tabs.close(tabID);
+    } catch (error) {
+      report(error);
     }
   }
   views.clear();
