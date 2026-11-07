@@ -151,7 +151,10 @@ export async function collectionMenuEntry(
   collectionID: number,
   l10nID: string,
 ): Promise<{ popup: any; entry: any }> {
-  await win.ZoteroPane.collectionsView.selectCollection(collectionID);
+  // Selecting a folder again would clear a quick search the case has set.
+  if (win.ZoteroPane.getSelectedCollection(true) !== collectionID) {
+    await win.ZoteroPane.collectionsView.selectCollection(collectionID);
+  }
   const popup = win.document.getElementById("zotero-collectionmenu");
   // A right-click runs this first, and it is what adds plugin entries.
   await win.ZoteroPane.buildCollectionContextMenu();

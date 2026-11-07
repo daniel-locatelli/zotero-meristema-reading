@@ -35,6 +35,13 @@ describe("Reading lists", function () {
       );
   }
 
+  /** Types `text` into the quick-search box and runs its search, as Enter does. */
+  async function quickSearch(text: string): Promise<void> {
+    const box = win.document.getElementById("zotero-tb-search");
+    box.searchTextbox.value = text;
+    await win.ZoteroPane.search();
+  }
+
   function cells(): string[] {
     return [bravo, alpha, charlie].map(
       (item) => plugin().api.stepCell(item.id, collection.id) as string,
@@ -54,6 +61,7 @@ describe("Reading lists", function () {
   });
 
   after(async function () {
+    await quickSearch("");
     // Reset the tree to the library before erasing what it shows.
     await win.ZoteroPane.collectionsView.selectLibrary(
       Zotero.Libraries.userLibraryID,
@@ -70,11 +78,20 @@ describe("Reading lists", function () {
 
   it("makes a list from the folder menu, in the item list's order", async function () {
     await win.ZoteroPane.collectionsView.selectCollection(collection.id);
+    // Title order is alpha, Bravo, Charlie, and so is the item list's default
+    // sort. A quick search that shows only Charlie tells the two apart: the
+    // shown paper comes first, then the ones it hid, by lowercased title.
+    await quickSearch("Charlie");
     const shownKeys = await waitFor(() => {
       const items = win.ZoteroPane.getSortedItems() as Zotero.Item[];
-      return items.length === 3 ? items.map((item) => item.key) : null;
+      return items.length === 1 ? items.map((item) => item.key) : null;
     }, 10_000);
-    expect(shownKeys, "the folder's three papers in the item list").to.exist;
+    expect(
+      shownKeys,
+      `the item list shows only Charlie; it shows ${(
+        win.ZoteroPane.getSortedItems() as Zotero.Item[]
+      ).map((item) => item.getField("title"))}`,
+    ).to.deep.equal([charlie.key]);
     const { popup, entry } = await collectionMenuEntry(
       win,
       collection.id,
@@ -88,6 +105,7 @@ describe("Reading lists", function () {
     popup.hidePopup();
     await reached;
     await idle();
+    await quickSearch("");
     const notes = listNotes();
     expect(notes, "list notes in the folder").to.have.length(1);
     expect(parseReadingList(notes[0].getNote())).to.deep.equal({
@@ -95,7 +113,10 @@ describe("Reading lists", function () {
       value: {
         version: 1,
         topic: TOPIC,
-        steps: shownKeys!.map((key) => ({ key, why: "" })),
+        steps: [charlie.key, alpha.key, bravo.key].map((key) => ({
+          key,
+          why: "",
+        })),
       },
     });
     expect(notes[0].getNote()).to.contain(
