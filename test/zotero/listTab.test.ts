@@ -176,6 +176,26 @@ describe("The list tab", function () {
     expect(listTabs(), "the list tab stays open").to.have.length(1);
   });
 
+  it("renames the tab when the list's topic changes", async function () {
+    const parsed = parseReadingList(note.getNote());
+    const doc = (parsed as { ok: true; value: ReadingListDoc }).value;
+    note.setNote(
+      writeReadingList({ ...doc, topic: "Renamed fixture" }, (key) => key, {
+        kind: "user",
+      }),
+    );
+    await note.saveTx();
+    await idle();
+    const renamed = await waitFor(
+      () => listTabs()[0]?.title === "Renamed fixture",
+      10_000,
+    );
+    expect(
+      renamed,
+      `the tab's title: ${listTabs().map((tab) => tab.title)}`,
+    ).to.equal(true);
+  });
+
   it("selects the open tab rather than opening a second", async function () {
     await openFromMenu();
     await idle();

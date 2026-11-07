@@ -56,6 +56,15 @@ function hideContextPane(
   content.setContextPaneOpen?.(false);
 }
 
+/** A list tab's title: the list's topic, else its folder's name. */
+function titleOf(collectionID: number): string {
+  const collection = Zotero.Collections.get(collectionID);
+  return (
+    listFor(collectionID)?.doc?.topic ||
+    (collection ? collection.name : "Reading list")
+  );
+}
+
 function render(tabID: string): void {
   const view = views.get(tabID);
   if (!view) return;
@@ -65,6 +74,15 @@ function render(tabID: string): void {
     currentKey: null,
     editable: Boolean(collection) && libraryEditable(collection.libraryID),
   });
+  // A list that is gone keeps its last title; the view says it is gone.
+  if (!listFor(view.collectionID)) return;
+  const title = titleOf(view.collectionID);
+  const tab = (view.win.Zotero_Tabs._tabs as any[]).find(
+    (open) => open.id === tabID,
+  );
+  if (tab && tab.title !== title) {
+    void view.win.Zotero_Tabs.rename(tabID, title);
+  }
 }
 
 /** Opens a folder's list as a tab, or selects the tab already showing it. */
@@ -78,15 +96,11 @@ export function openListTab(
     manager.select(tabID);
     return;
   }
-  const list = listFor(collectionID);
-  if (!list) return;
-  const collection = Zotero.Collections.get(collectionID);
-  const title =
-    list.doc?.topic || (collection ? collection.name : "Reading list");
+  if (!listFor(collectionID)) return;
   const { container } = manager.add({
     id: tabID,
     type: TAB_TYPE,
-    title,
+    title: titleOf(collectionID),
     data: { collectionID },
     select: true,
     onClose: () => {
