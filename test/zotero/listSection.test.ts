@@ -126,6 +126,19 @@ describe("The Reading list section", function () {
       "readable part rebuilt in the new order",
     ).to.be.lessThan(html.indexOf(`items/${a.key}`));
     await untilSteps([b.key, a.key]);
+    // The redraw keeps the moved step focused, so the keys keep moving it.
+    const focusedKey = () =>
+      (win.document.activeElement as HTMLElement | null)?.dataset?.key;
+    expect(focusedKey(), "the moved step keeps the focus").to.equal(a.key);
+    altArrow(win, win.document.activeElement, "ArrowUp");
+    await idle();
+    await untilSteps([a.key, b.key]);
+    expect(focusedKey(), "focus after the second press").to.equal(a.key);
+    altArrow(win, win.document.activeElement, "ArrowDown");
+    await idle();
+    await untilSteps([b.key, a.key]);
+    expect(focusedKey(), "focus after the third press").to.equal(a.key);
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([b.key, a.key]);
   });
 
   it("drops an unordered paper into the steps before the step it lands on", async function () {
@@ -160,6 +173,59 @@ describe("The Reading list section", function () {
       { key: c.key, why: "" },
       { key: b.key, why: 'Read <this> & "that"' },
     ]);
+  });
+
+  it("keeps a reason being typed through a redraw, then saves it", async function () {
+    const why = row(c.key).querySelector(".mr-why") as HTMLTextAreaElement;
+    why.focus();
+    why.value = "typed here";
+    why.dispatchEvent(new win.Event("input", { bubbles: true }));
+    // A store change from elsewhere: the note rewritten through the API.
+    const parsed = parseReadingList(note.getNote());
+    const doc = (parsed as { ok: true; value: ReadingListDoc }).value;
+    note.setNote(
+      writeReadingList(
+        {
+          ...doc,
+          steps: doc.steps.map((step) =>
+            step.key === b.key ? { ...step, why: "from elsewhere" } : step,
+          ),
+        },
+        (key) => key,
+        { kind: "user" },
+      ),
+    );
+    await note.saveTx();
+    await idle();
+    const seen = () =>
+      JSON.stringify({
+        same: row(c.key)?.querySelector(".mr-why") === why,
+        value: why.value,
+        focused: win.document.activeElement === why,
+        bWhy: (row(b.key)?.querySelector(".mr-why") as HTMLTextAreaElement)
+          ?.value,
+      });
+    expect(
+      row(c.key).querySelector(".mr-why") === why && why.value === "typed here",
+      `the reason being typed survives the change: ${seen()}`,
+    ).to.equal(true);
+
+    why.dispatchEvent(new win.Event("change", { bubbles: true }));
+    why.blur();
+    await idle();
+    expect(stepsInNote(), "the typed reason saved").to.deep.equal([
+      { key: c.key, why: "typed here" },
+      { key: b.key, why: "from elsewhere" },
+    ]);
+    const redrawn = await waitFor(
+      () =>
+        (row(b.key)?.querySelector(".mr-why") as HTMLTextAreaElement)?.value ===
+        "from elsewhere",
+      10_000,
+    );
+    expect(redrawn, `the view redraws after the blur: ${seen()}`).to.equal(
+      true,
+    );
   });
 
   it("toggles a step's read state, and next up follows", async function () {

@@ -9,6 +9,7 @@ import {
 import type { ReadingListStep, ResolvedStep } from "../format/readingList";
 import { nextUp, type ReadState } from "../format/readState";
 import { editList, labelOf, listFor, UnreadableListError } from "./listStore";
+import { enqueue } from "./queue";
 import { report } from "./report";
 import { markItems, stateOfItem, UnreadableStateError } from "./stateStore";
 
@@ -21,6 +22,14 @@ const STATE_LABEL: Record<ReadState, string> = {
 
 /** The key being dragged, shared by every view so a drag can cross rows. */
 let dragged: string | null = null;
+
+/** A redraw held back while the reader types a reason, with its latest arguments. */
+const deferred = new WeakMap<
+  HTMLElement,
+  { collectionID: number; options: ListViewOptions }
+>();
+/** The step a keyboard move asked to keep focused through the next redraw. */
+const refocus = new WeakMap<HTMLElement, string>();
 
 export interface ListViewOptions {
   mode: "sidebar" | "tab";
@@ -57,12 +66,72 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/**
+ * A reason the reader is in or has typed into and not yet handed over: a
+ * redraw would destroy it, since its `change` comes only on blur.
+ */
+function holdsTyping(container: HTMLElement, doc: Document): boolean {
+  const fields = Array.from(
+    container.querySelectorAll(".mr-why"),
+  ) as HTMLTextAreaElement[];
+  for (const why of fields) {
+    if (doc.activeElement === why || why.value !== why.dataset.saved) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Draws a redraw held back for typing, once the typing is handed over. */
+function redrawDeferred(container: HTMLElement): void {
+  const held = deferred.get(container);
+  if (!held) return;
+  deferred.delete(container);
+  renderList(container, held.collectionID, held.options);
+}
+
+/** The key of the row, or of the row whose state toggle, has the focus. */
+function focusedKey(
+  container: HTMLElement,
+  doc: Document,
+): { key: string; part: "row" | "state" } | null {
+  const active = doc.activeElement as HTMLElement | null;
+  if (!active || !container.contains(active)) return null;
+  if (active.matches(".mr-step, .mr-paper") && active.dataset.key) {
+    return { key: active.dataset.key, part: "row" };
+  }
+  const row = active.closest(".mr-step, .mr-paper") as HTMLElement | null;
+  if (active.matches(".mr-state") && row?.dataset.key) {
+    return { key: row.dataset.key, part: "state" };
+  }
+  return null;
+}
+
+function restoreFocus(
+  container: HTMLElement,
+  wanted: { key: string; part: "row" | "state" } | null,
+): void {
+  if (!wanted) return;
+  const rows = Array.from(
+    container.querySelectorAll(".mr-step, .mr-paper"),
+  ) as HTMLElement[];
+  const row = rows.find((node) => node.dataset.key === wanted.key);
+  const target =
+    wanted.part === "state"
+      ? (row?.querySelector(".mr-state") as HTMLElement | null | undefined)
+      : row;
+  target?.focus();
+}
+
 function allowDrop(event: DragEvent): void {
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
 }
 
-/** Draws a folder's reading list into `container`, wiring every edit to the stores. */
+/**
+ * Draws a folder's reading list into `container`, wiring every edit to the
+ * stores. While the reader types a reason, the redraw waits for the blur.
+ */
 export function renderList(
   container: HTMLElement,
   collectionID: number,
@@ -71,6 +140,15 @@ export function renderList(
   const owner = container.ownerDocument;
   if (!owner) return;
   const doc: Document = owner;
+  if (holdsTyping(container, doc)) {
+    deferred.set(container, { collectionID, options });
+    return;
+  }
+  deferred.delete(container);
+  const keyToFocus = refocus.has(container)
+    ? { key: refocus.get(container)!, part: "row" as const }
+    : focusedKey(container, doc);
+  refocus.delete(container);
   container.replaceChildren();
   container.classList.add("mr-list", `mr-${options.mode}`);
   const list = listFor(collectionID);
@@ -112,9 +190,9 @@ export function renderList(
     const item = itemOf(key);
     return item ? stateOfItem(item) : "unread";
   };
-  const edit = (change: (steps: ReadingListStep[]) => ReadingListStep[]) => {
-    void editList(collectionID, change).catch(failed);
-  };
+  const edit = (
+    change: (steps: ReadingListStep[]) => ReadingListStep[],
+  ): Promise<void> => editList(collectionID, change).catch(failed);
   const next = nextUp(list.resolved.steps, stateOfKey);
 
   container.append(element(doc, "div", "mr-topic", list.doc.topic));
@@ -162,14 +240,26 @@ export function renderList(
     paperParts(row, step.key);
     const why = element(doc, "textarea", "mr-why");
     why.value = step.why;
+    // As the field reads it back, so line endings never look like typing.
+    why.dataset.saved = why.value;
     why.rows = options.mode === "tab" ? 3 : 1;
     why.placeholder = "Why read it";
-    why.addEventListener("change", () =>
-      edit((steps) => setWhy(steps, step.key, why.value)),
-    );
+    why.addEventListener("change", () => {
+      why.dataset.saved = why.value;
+      const text = why.value;
+      void edit((steps) => setWhy(steps, step.key, text)).finally(() =>
+        redrawDeferred(container),
+      );
+    });
+    why.addEventListener("blur", () => {
+      // Behind the change handler's save, which the queue runs first.
+      void enqueue(() => Promise.resolve()).finally(() =>
+        redrawDeferred(container),
+      );
+    });
     why.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        why.value = step.why;
+        why.value = why.dataset.saved ?? "";
         why.blur();
       }
     });
@@ -178,7 +268,8 @@ export function renderList(
       if (event.target === why || !event.altKey) return;
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
       event.preventDefault();
-      edit((steps) =>
+      refocus.set(container, step.key);
+      void edit((steps) =>
         shiftStep(steps, step.key, event.key === "ArrowUp" ? -1 : 1),
       );
     });
@@ -188,7 +279,7 @@ export function renderList(
       event.stopPropagation();
       const moving = dragged;
       dragged = null;
-      if (moving) edit((steps) => placeStep(steps, moving, step.key));
+      if (moving) void edit((steps) => placeStep(steps, moving, step.key));
     });
     return row;
   }
@@ -200,7 +291,7 @@ export function renderList(
     event.preventDefault();
     const moving = dragged;
     dragged = null;
-    if (moving) edit((current) => placeStep(current, moving, null));
+    if (moving) void edit((current) => placeStep(current, moving, null));
   });
   container.append(steps);
 
@@ -219,7 +310,8 @@ export function renderList(
     event.preventDefault();
     const moving = dragged;
     dragged = null;
-    if (moving) edit((current) => unplaceStep(current, moving));
+    if (moving) void edit((current) => unplaceStep(current, moving));
   });
   container.append(unordered);
+  restoreFocus(container, keyToFocus);
 }
