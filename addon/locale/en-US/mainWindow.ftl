@@ -7,3 +7,5 @@ mark-reading =
     .label = Reading
 mark-read =
     .label = Read
+make-reading-list =
+    .label = Make Reading List

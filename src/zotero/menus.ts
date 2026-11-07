@@ -1,5 +1,6 @@
 import { config } from "../../package.json";
 import type { ReadState } from "../format/readState";
+import { listFor, makeReadingList } from "./listStore";
 import { report } from "./report";
 import { markItems, UnreadableStateError } from "./stateStore";
 
@@ -72,6 +73,59 @@ function itemMenus(): MenuData[] {
   ];
 }
 
+/** The one folder the user right-clicked, or null for anything else. */
+function contextCollectionID(context: any): number | null {
+  const rows = contextValue(context, "collectionTreeRows");
+  const selected = Array.isArray(rows)
+    ? rows
+    : [contextValue(context, "collectionTreeRow")];
+  if (selected.length !== 1 || selected[0]?.isCollection?.() !== true) {
+    return null;
+  }
+  const id = Number(contextValue(selected[0], "ref")?.id);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function canMakeList(collectionID: number): boolean {
+  const collection = Zotero.Collections.get(collectionID);
+  if (!collection) return false;
+  const library = Zotero.Libraries.get(collection.libraryID) as any;
+  return Boolean(library?.editable) && !listFor(collectionID);
+}
+
+/** The item list's order, when it shows this folder. */
+function shownKeys(collectionID: number): string[] | null {
+  const pane = Zotero.getActiveZoteroPane();
+  if (pane?.getSelectedCollection(true) !== collectionID) return null;
+  return (pane.getSortedItems() as Zotero.Item[]).map((item) => item.key);
+}
+
+function collectionMenus(): MenuData[] {
+  return [
+    {
+      menuType: "menuitem",
+      l10nID: `${config.addonRef}-make-reading-list`,
+      icon: ICON,
+      onShowing: (_event: Event, context: any) => {
+        const id = contextCollectionID(context);
+        const available = id !== null && canMakeList(id);
+        context.setVisible(available);
+        context.setEnabled(available);
+      },
+      onCommand: (_event: Event, context: any) => {
+        const id = contextCollectionID(context);
+        if (id === null) return;
+        void makeReadingList(id, shownKeys(id)).catch((error: unknown) => {
+          report(error);
+          alert(
+            "Meristema Reading could not make the reading list. See the error console.",
+          );
+        });
+      },
+    },
+  ];
+}
+
 export function registerMenus(): void {
   if (registered.length) return;
   register({
@@ -79,6 +133,12 @@ export function registerMenus(): void {
     pluginID: config.addonID,
     target: "main/library/item",
     menus: itemMenus(),
+  });
+  register({
+    menuID: "meristema-reading-collection-menu",
+    pluginID: config.addonID,
+    target: "main/library/collection",
+    menus: collectionMenus(),
   });
 }
 

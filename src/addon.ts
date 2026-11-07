@@ -1,10 +1,13 @@
 import { config } from "../package.json";
 import hooks from "./hooks";
 import { whenIdle } from "./zotero/notifier";
+import { stepCell, stepColumnKey } from "./zotero/stepColumn";
 
 /** What the Zotero suite reads: its bundle is a second copy of the plugin. */
 export interface ReadingAPI {
   whenIdle(): Promise<void>;
+  stepCell(itemID: number, collectionID: number): string;
+  stepColumnKey(): string | null;
 }
 
 class Addon {
@@ -21,7 +24,14 @@ class Addon {
   constructor() {
     this.data = { alive: true, config, env: __env__, initialized: false };
     this.hooks = hooks;
-    this.api = Object.freeze({ whenIdle });
+    this.api = Object.freeze({
+      whenIdle,
+      stepCell: (itemID: number, collectionID: number) => {
+        const item = Zotero.Items.get(itemID) as Zotero.Item | false;
+        return item ? stepCell(item.key, collectionID) : "";
+      },
+      stepColumnKey,
+    });
   }
 }
 

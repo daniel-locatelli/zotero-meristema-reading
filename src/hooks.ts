@@ -1,8 +1,10 @@
 import { config } from "../package.json";
+import { clearLists } from "./zotero/listStore";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
 import { report } from "./zotero/report";
 import { resetStateStore, startStateStore } from "./zotero/stateStore";
+import { registerStepColumn, unregisterStepColumn } from "./zotero/stepColumn";
 
 async function onStartup(): Promise<void> {
   await Promise.all([
@@ -16,6 +18,12 @@ async function onStartup(): Promise<void> {
   // reads the notes again, so the menus are offered either way.
   try {
     await startStateStore();
+  } catch (error) {
+    report(error);
+  }
+  // A column that fails to register leaves the menus and marking working.
+  try {
+    await registerStepColumn();
   } catch (error) {
     report(error);
   }
@@ -33,6 +41,8 @@ async function onMainWindowUnload(
 
 async function onShutdown(_appShutdown: boolean): Promise<void> {
   unregisterMenus();
+  unregisterStepColumn();
+  clearLists();
   unregisterNotifier();
   resetStateStore();
   addon.data.alive = false;
