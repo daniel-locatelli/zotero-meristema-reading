@@ -148,6 +148,41 @@ describe("Read state", function () {
     expect(withoutDOI.hasTag("_read"), "_read taken off").to.equal(false);
   });
 
+  it("keeps a reader's own tags and tags every paper sharing a DOI", async function () {
+    const doi = "10.5555/meristema-reading.shared";
+    const tagged = new Zotero.Item("journalArticle");
+    tagged.libraryID = Zotero.Libraries.userLibraryID;
+    tagged.setField("title", "Shared DOI, tagged copy");
+    tagged.setField("DOI", doi);
+    tagged.addTag("my-topic");
+    await tagged.saveTx({ skipSelect: true });
+    const copy = await makePaper("Shared DOI, plain copy", doi.toUpperCase());
+    await idle();
+    try {
+      await markThroughMenu(win, [copy.id], "read");
+      const tags = (item: Zotero.Item) =>
+        item
+          .getTags()
+          .map((tag: { tag: string }) => tag.tag)
+          .sort();
+      expect(
+        { tagged: tags(tagged), copy: tags(copy) },
+        "both copies Read, the reader's tag kept",
+      ).to.deep.equal({ tagged: ["_read", "my-topic"], copy: ["_read"] });
+      await markThroughMenu(win, [tagged.id], "unread");
+      expect(
+        { tagged: tags(tagged), copy: tags(copy) },
+        "both copies Unread, the reader's tag kept",
+      ).to.deep.equal({ tagged: ["my-topic"], copy: [] });
+    } finally {
+      await win.ZoteroPane.collectionsView.selectLibrary(
+        Zotero.Libraries.userLibraryID,
+      );
+      await Zotero.Items.erase([tagged.id, copy.id]);
+      await idle();
+    }
+  });
+
   it("mirrors once a sync finishes, not paper by paper during it", async function () {
     const api = plugin().api;
     let arrived: Zotero.Item | null = null;

@@ -42,6 +42,26 @@ describe("planMirror", () => {
     ]);
   });
 
+  it("never touches a reader's own tags", () => {
+    expect(
+      planMirror(doc, [
+        { id: 6, paperId: READING, tags: ["my-topic", "_read", "_reading2"] },
+      ]),
+    ).to.deep.equal([{ id: 6, add: ["_reading"], remove: ["_read"] }]);
+  });
+
+  it("tags every item that shares a paper id", () => {
+    expect(
+      planMirror(doc, [
+        { id: 7, paperId: DOI, tags: [] },
+        { id: 8, paperId: DOI, tags: ["my-topic"] },
+      ]),
+    ).to.deep.equal([
+      { id: 7, add: ["_read"], remove: [] },
+      { id: 8, add: ["_read"], remove: [] },
+    ]);
+  });
+
   it("plans nothing for items already right", () => {
     expect(
       planMirror(doc, [

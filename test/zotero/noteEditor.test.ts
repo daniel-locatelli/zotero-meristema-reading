@@ -172,6 +172,13 @@ describe("Note editor round trip", function () {
       released,
       `the editor opened the other note (plain ${plain.id}, state note ${note.id}, paper ${paper.id}): ${attempts.join("; ")}`,
     ).to.be.ok;
+    // The runner prints what the test window's `debug` sends it.
+    const debug = (globalThis as any).debug;
+    if (typeof debug === "function") {
+      debug(
+        `Note editor round trip: the other note held after ${attempts.length} select attempt(s)`,
+      );
+    }
     await released._initPromise;
     await markThroughMenu(win, [paper.id], "read");
     expect(
