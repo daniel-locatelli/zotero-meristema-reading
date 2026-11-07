@@ -21,6 +21,24 @@ export class UnreadableStateError extends Refusal {}
 let doc: ReadStateDoc = emptyReadState();
 let keeperID: number | null = null;
 let unreadable = false;
+/** A full mirror put off while a sync ran. */
+let mirrorOwed = false;
+/** The Zotero suite's stand-in for a sync running; null for the real one. */
+let syncOverride: boolean | null = null;
+
+/**
+ * Whether a sync is bringing items in. During one, a paper can arrive before
+ * the state note that holds its read state, so mirroring it from the state in
+ * memory would strip its tags and upload that.
+ */
+function syncing(): boolean {
+  return syncOverride ?? Boolean((Zotero as any).Sync?.Runner?.syncInProgress);
+}
+
+/** For the Zotero suite, which cannot start a real sync. */
+export function simulateSync(inProgress: boolean | null): void {
+  syncOverride = inProgress;
+}
 
 /** What the views draw of the read state, to tell whether it changed. */
 function stateKey(): string {
@@ -126,6 +144,8 @@ export function resetStateStore(): void {
   doc = emptyReadState();
   keeperID = null;
   unreadable = false;
+  mirrorOwed = false;
+  syncOverride = null;
 }
 
 /**
@@ -167,16 +187,41 @@ export function stateChanged(): Promise<void> {
   return enqueue(async () => {
     const before = stateKey();
     await load();
-    if (stateKey() === before) return;
-    await mirrorAll();
-    emitChange();
+    const changed = stateKey() !== before;
+    if (changed || mirrorOwed) await mirrorAllUnlessSyncing();
+    if (changed) emitChange();
   });
+}
+
+/** Mirrors every paper, or, while a sync runs, owes it to the sync's end. */
+async function mirrorAllUnlessSyncing(): Promise<void> {
+  if (syncing()) {
+    mirrorOwed = true;
+    return;
+  }
+  mirrorOwed = false;
+  await mirrorAll();
 }
 
 /** Regular items changed (added, retagged, their DOI edited): mirror them again. */
 export function itemsChanged(ids: number[]): Promise<void> {
   return enqueue(async () => {
+    if (syncing() || mirrorOwed) {
+      await mirrorAllUnlessSyncing();
+      return;
+    }
     const items = (await Zotero.Items.getAsync(ids)).filter(Boolean);
     await mirror(items);
+  });
+}
+
+/** A sync ended: read the notes it brought, and run the mirror it put off. */
+export function syncFinished(): Promise<void> {
+  return enqueue(async () => {
+    if (!mirrorOwed) return;
+    const before = stateKey();
+    await load();
+    await mirrorAllUnlessSyncing();
+    if (stateKey() !== before) emitChange();
   });
 }

@@ -13,6 +13,7 @@ import {
   idle,
   makePaper,
   markThroughMenu,
+  plugin,
   stateNotes,
 } from "./helpers";
 
@@ -145,5 +146,67 @@ describe("Read state", function () {
     await idle();
     expect(withoutDOI.hasTag("_reading"), "_reading put back").to.equal(true);
     expect(withoutDOI.hasTag("_read"), "_read taken off").to.equal(false);
+  });
+
+  it("mirrors once a sync finishes, not paper by paper during it", async function () {
+    const api = plugin().api;
+    let arrived: Zotero.Item | null = null;
+    let unmarked: Zotero.Item | null = null;
+    api.simulateSync(true);
+    try {
+      // The sync removes the state note: the papers keep their tags for now.
+      await eraseStateNotes();
+      await idle();
+      expect(
+        withDOI.hasTag("_read"),
+        "no mirror while the sync runs, after the state note went",
+      ).to.equal(true);
+      // A paper the sync brings with its mirror tag, before the state note.
+      arrived = new Zotero.Item("journalArticle");
+      arrived.libraryID = Zotero.Libraries.userLibraryID;
+      arrived.setField("title", "Synced paper, already Read");
+      arrived.addTag("_read");
+      await arrived.saveTx({ skipSelect: true });
+      unmarked = await makePaper("Synced paper, Read on the server");
+      await idle();
+      expect(
+        arrived.hasTag("_read"),
+        "the synced tag survives the paper's arrival",
+      ).to.equal(true);
+      let doc = emptyReadState();
+      for (const item of [arrived, unmarked]) {
+        doc = setState(doc, `user:${item.key}`, "read", "2026-03-01T00:00:00Z");
+      }
+      await stateNote(writeReadState(doc));
+      await idle();
+      expect(
+        unmarked.hasTag("_read"),
+        "no mirror while the sync runs",
+      ).to.equal(false);
+      api.simulateSync(false);
+      await Zotero.Notifier.trigger("finish", "sync", []);
+      await idle();
+      expect(
+        {
+          arrived: arrived.hasTag("_read"),
+          unmarked: unmarked.hasTag("_read"),
+          withDOI: withDOI.hasTag("_read"),
+          withoutDOI: withoutDOI.hasTag("_reading"),
+        },
+        "one full mirror once the sync finished",
+      ).to.deep.equal({
+        arrived: true,
+        unmarked: true,
+        withDOI: false,
+        withoutDOI: false,
+      });
+    } finally {
+      api.simulateSync(null);
+      const ids = [arrived, unmarked]
+        .filter((item): item is Zotero.Item => Boolean(item?.id))
+        .map((item) => item.id);
+      if (ids.length) await Zotero.Items.erase(ids);
+      await idle();
+    }
   });
 });

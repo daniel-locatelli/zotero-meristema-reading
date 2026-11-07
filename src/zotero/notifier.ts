@@ -2,7 +2,7 @@ import { cancelChange, emitChange, isChangePending } from "./changes";
 import { reconcileLists } from "./listStore";
 import { isBusy } from "./queue";
 import { report } from "./report";
-import { itemsChanged, stateChanged } from "./stateStore";
+import { itemsChanged, stateChanged, syncFinished } from "./stateStore";
 import { refreshStepColumn } from "./stepColumn";
 
 const FLUSH_DELAY_MS = 50;
@@ -10,6 +10,7 @@ let observerID: string | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let stateDirty = false;
 let listsDirty = false;
+let syncDone = false;
 const touched = new Set<number>();
 /** Folders an event named, read again even when no view was told of them. */
 const touchedFolders = new Set<number>();
@@ -20,13 +21,18 @@ function itemIDOf(type: string, id: number | string): number {
 }
 
 function notify(
-  _event: string,
+  event: string,
   type: string,
   ids: Array<number | string>,
 ): void {
-  // Any library event can change a folder's list: a paper renamed, filed,
-  // trashed or merged, or a note edited.
-  listsDirty = true;
+  if (type === "sync") {
+    if (event !== "finish") return;
+    syncDone = true;
+  } else {
+    // Any library event can change a folder's list: a paper renamed, filed,
+    // trashed or merged, or a note edited.
+    listsDirty = true;
+  }
   if (type === "collection") {
     for (const raw of ids) touchedFolders.add(Number(raw));
   }
@@ -75,13 +81,17 @@ function flush(): void {
     touched.clear();
     void itemsChanged(ids).catch(report);
   }
+  if (syncDone) {
+    syncDone = false;
+    void syncFinished().catch(report);
+  }
 }
 
 export function registerNotifier(): void {
   if (observerID) return;
   observerID = Zotero.Notifier.registerObserver(
     { notify } as any,
-    ["item", "item-tag", "collection", "collection-item"],
+    ["item", "item-tag", "collection", "collection-item", "sync"],
     "meristema-reading",
   );
 }
@@ -91,6 +101,7 @@ export function unregisterNotifier(): void {
   flushTimer = null;
   stateDirty = false;
   listsDirty = false;
+  syncDone = false;
   touched.clear();
   touchedFolders.clear();
   cancelChange();

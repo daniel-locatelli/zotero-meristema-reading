@@ -3,6 +3,7 @@ import hooks from "./hooks";
 import { changesEmitted } from "./zotero/changes";
 import { renderList, type ListViewOptions } from "./zotero/listView";
 import { whenIdle } from "./zotero/notifier";
+import { simulateSync } from "./zotero/stateStore";
 import {
   stepCell,
   stepColumnKey,
@@ -18,6 +19,8 @@ export interface ReadingAPI {
   columnRefreshes(): number;
   /** How many times the views were told the stores changed. */
   changesEmitted(): number;
+  /** Stands in for a sync running (true or false), or the real one (null). */
+  simulateSync(inProgress: boolean | null): void;
   /** Draws a list into `container`, as the section and the tab do. */
   renderList(
     container: HTMLElement,
@@ -49,6 +52,7 @@ class Addon {
       stepColumnKey,
       columnRefreshes: stepColumnRefreshes,
       changesEmitted,
+      simulateSync,
       renderList,
     });
   }
