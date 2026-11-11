@@ -370,5 +370,89 @@ describe("Read state", function () {
       expect(tags(two), "the paper out of the folder").to.deep.equal([]);
       expect(tags(one), "the paper still in it").to.deep.equal(["_read"]);
     });
+
+    it("mirrors no paper again when a reason is saved or a step moved", async function () {
+      const api = plugin().api;
+      const saves: number[] = [];
+      const observerID = Zotero.Notifier.registerObserver(
+        {
+          notify(event: string, _type: string, ids: any[], extraData: any) {
+            if (event !== "modify") return;
+            for (const id of ids) {
+              if (extraData?.[id]?.meristemaReadingMirror) saves.push(id);
+            }
+          },
+        } as any,
+        ["item"],
+        "meristema-reading-test",
+      );
+      const before = api.fullMirrors() as number;
+      try {
+        const rewrite = async (keys: string[], why: string) => {
+          note.setNote(
+            writeReadingList(
+              {
+                version: 1,
+                topic: "Unread mirror fixture",
+                steps: keys.map((key) => ({ key, why })),
+              },
+              (key) => key,
+              { kind: "user" },
+            ),
+          );
+          await note.saveTx({ skipSelect: true });
+          await idle();
+        };
+        await rewrite([one.key, two.key], "a reason");
+        await rewrite([two.key, one.key], "a reason");
+      } finally {
+        Zotero.Notifier.unregisterObserver(observerID);
+      }
+      expect(
+        { fullMirrors: (api.fullMirrors() as number) - before, saves },
+        "a reason and a new order mirror nothing",
+      ).to.deep.equal({ fullMirrors: 0, saves: [] });
+      expect(tags(one), "the listed paper keeps its tag").to.deep.equal([
+        "_read",
+      ]);
+    });
+
+    it("takes _unread off while the list note or the folder is in the trash", async function () {
+      const three = await makePaper(
+        "Unread mirror paper three",
+        undefined,
+        collection.id,
+      );
+      try {
+        await idle();
+        const seen: Record<string, string[]> = { added: tags(three) };
+        note.deleted = true;
+        await note.saveTx({ skipSelect: true });
+        await idle();
+        seen.noteTrashed = tags(three);
+        note.deleted = false;
+        await note.saveTx({ skipSelect: true });
+        await idle();
+        seen.noteRestored = tags(three);
+        collection.deleted = true;
+        await collection.saveTx();
+        await idle();
+        seen.folderTrashed = tags(three);
+        collection.deleted = false;
+        await collection.saveTx();
+        await idle();
+        seen.folderRestored = tags(three);
+        expect(seen, "the third paper's tags").to.deep.equal({
+          added: ["_unread"],
+          noteTrashed: [],
+          noteRestored: ["_unread"],
+          folderTrashed: [],
+          folderRestored: ["_unread"],
+        });
+      } finally {
+        await Zotero.Items.erase([three.id]);
+        await idle();
+      }
+    });
   });
 });

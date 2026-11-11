@@ -70,7 +70,8 @@ function flush(): void {
     const folders = [...touchedFolders];
     touchedFolders.clear();
     // A folder's papers or list note changed: who is listed, and so tagged
-    // `_unread`, may have too. Mirrored after the state note is read again.
+    // `_unread`, may have too. Checked after the state note is read again;
+    // only papers that joined or left a list are mirrored.
     membersDirty = folders.length > 0;
     try {
       // Zotero's column refresh re-queries the item list and restores its

@@ -31,6 +31,13 @@ let unreadable = false;
 let mirrorOwed = false;
 /** The Zotero suite's stand-in for a sync running; null for the real one. */
 let syncOverride: boolean | null = null;
+/**
+ * The papers in a reading list when the last full mirror ran, kept up as
+ * papers join and leave lists; null until a full mirror has run.
+ */
+let lastListed: Set<number> | null = null;
+/** How many times every paper of My Library was mirrored, for the Zotero suite. */
+let fullMirrors = 0;
 
 /**
  * Whether a sync is bringing items in. During one, a paper can arrive before
@@ -120,9 +127,12 @@ async function listedItemIDs(): Promise<Set<number>> {
 }
 
 /** Rewrites the mirror tags on `items`, keeping only regular items of My Library. */
-async function mirror(items: Zotero.Item[]): Promise<void> {
+async function mirror(
+  items: Zotero.Item[],
+  known?: Set<number>,
+): Promise<void> {
   if (unreadable) return;
-  const listed = await listedItemIDs();
+  const listed = known ?? (await listedItemIDs());
   const own = items.filter(
     (item) =>
       item.libraryID === userLibraryID() &&
@@ -156,9 +166,18 @@ async function mirror(items: Zotero.Item[]): Promise<void> {
 }
 
 async function mirrorAll(): Promise<void> {
+  if (unreadable) return;
+  fullMirrors++;
   const items = await Zotero.Items.getAll(userLibraryID(), false, false);
   await Zotero.Items.loadDataTypes(items, ["itemData", "tags"]);
-  await mirror(items);
+  const listed = await listedItemIDs();
+  await mirror(items, listed);
+  lastListed = listed;
+}
+
+/** How many full mirrors have run, for the Zotero suite. */
+export function fullMirrorCount(): number {
+  return fullMirrors;
 }
 
 export function startStateStore(): Promise<void> {
@@ -175,6 +194,7 @@ export function resetStateStore(): void {
   unreadable = false;
   mirrorOwed = false;
   syncOverride = null;
+  lastListed = null;
 }
 
 /**
@@ -242,9 +262,29 @@ export function itemsChanged(ids: number[]): Promise<void> {
   });
 }
 
-/** A folder's papers or its list note changed: who is listed may have too. */
+/**
+ * A folder's papers or its list note changed: who is listed may have too.
+ * Only the papers that joined or left a list are mirrored again; a reason
+ * saved or a step moved changes neither, and mirrors nothing.
+ */
 export function listsChanged(): Promise<void> {
-  return enqueue(() => mirrorAllUnlessSyncing());
+  return enqueue(async () => {
+    const before = lastListed;
+    if (syncing() || mirrorOwed || before === null) {
+      await mirrorAllUnlessSyncing();
+      return;
+    }
+    if (unreadable) return;
+    const listed = await listedItemIDs();
+    const moved = [
+      ...[...listed].filter((id) => !before.has(id)),
+      ...[...before].filter((id) => !listed.has(id)),
+    ];
+    lastListed = listed;
+    if (!moved.length) return;
+    const items = (await Zotero.Items.getAsync(moved)).filter(Boolean);
+    await mirror(items, listed);
+  });
 }
 
 /** A sync ended: read the notes it brought, and run the mirror it put off. */

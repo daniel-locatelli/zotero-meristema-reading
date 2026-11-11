@@ -3,7 +3,7 @@ import hooks from "./hooks";
 import { changesEmitted } from "./zotero/changes";
 import { renderList, type ListViewOptions } from "./zotero/listView";
 import { whenIdle } from "./zotero/notifier";
-import { simulateSync } from "./zotero/stateStore";
+import { fullMirrorCount, simulateSync } from "./zotero/stateStore";
 import {
   stepCell,
   stepColumnKey,
@@ -19,6 +19,8 @@ export interface ReadingAPI {
   columnRefreshes(): number;
   /** How many times the views were told the stores changed. */
   changesEmitted(): number;
+  /** How many times every paper of My Library was mirrored onto tags. */
+  fullMirrors(): number;
   /** Stands in for a sync running (true or false), or the real one (null). */
   simulateSync(inProgress: boolean | null): void;
   /** Draws a list into `container`, as the section and the tab do. */
@@ -51,6 +53,7 @@ class Addon {
       stepColumnKey,
       columnRefreshes: stepColumnRefreshes,
       changesEmitted,
+      fullMirrors: fullMirrorCount,
       simulateSync,
       renderList,
     });
