@@ -9,7 +9,8 @@
     "addonName": "Meristema Reading",
     "addonID": "meristema-reading@daniel-locatelli",
     "addonRef": "meristemareading",
-    "addonInstance": "MeristemaReading"
+    "addonInstance": "MeristemaReading",
+    "prefsPrefix": "extensions.meristemareading"
   },
   "repository": {
     "type": "git",

@@ -1,4 +1,10 @@
 import { config } from "../../package.json";
+import {
+  parseOpenTabs,
+  withoutTab,
+  withTab,
+  type OpenTab,
+} from "../domain/openTabs";
 import { onChange } from "./changes";
 import { listFor } from "./listStore";
 import { libraryEditable, renderList } from "./listView";
@@ -6,6 +12,9 @@ import { report } from "./report";
 
 const TAB_TYPE = `${config.addonRef}-list`;
 const HOOK_MARKER = "__meristemaReadingTabHooks";
+/** The tab bar draws this as the plugin's logo (`addon/content/tabIcon.css`). */
+const TAB_ICON = "meristema-reading-list";
+const OPEN_TABS_PREF = `${config.prefsPrefix}.openTabs`;
 const views = new Map<
   string,
   {
@@ -15,10 +24,31 @@ const views = new Map<
   }
 >();
 let unsubscribe: (() => void) | null = null;
+/**
+ * While frozen, opening and closing tabs leaves the open-tab record alone:
+ * Zotero quitting or the plugin shutting down closes every tab, and the
+ * record must outlive that.
+ */
+let recordFrozen = false;
+
+function readRecord(): OpenTab[] {
+  return parseOpenTabs(String(Zotero.Prefs.get(OPEN_TABS_PREF, true) ?? ""));
+}
+
+function writeRecord(list: OpenTab[]): void {
+  if (recordFrozen) return;
+  Zotero.Prefs.set(OPEN_TABS_PREF, JSON.stringify(list), true);
+}
+
+/** Stops the open-tab record changing until the plugin starts again. */
+export function freezeOpenTabs(): void {
+  recordFrozen = true;
+}
 
 /**
  * Keeps list tabs out of Zotero's saved session: a restored tab would come
- * back with no view, so the reader reopens it from the folder instead.
+ * back with no view, so the plugin keeps its own record of them and reopens
+ * them itself (`reopenListTabs`).
  */
 export function installTabHooks(win: _ZoteroTypes.MainWindow): void {
   const manager = win.Zotero_Tabs;
@@ -85,28 +115,41 @@ function render(tabID: string): void {
   }
 }
 
-/** Opens a folder's list as a tab, or selects the tab already showing it. */
+/**
+ * Opens a folder's list as a tab, or selects the tab already showing it.
+ * With `select: false` the tab opens behind the selected one.
+ */
 export function openListTab(
   collectionID: number,
   win: _ZoteroTypes.MainWindow = Zotero.getMainWindow(),
+  { select = true }: { select?: boolean } = {},
 ): void {
   const manager = win.Zotero_Tabs;
   const tabID = `${TAB_TYPE}-${collectionID}`;
   if ((manager._tabs as any[]).some((tab) => tab.id === tabID)) {
-    manager.select(tabID);
+    if (select) manager.select(tabID);
     return;
   }
   if (!listFor(collectionID)) return;
+  const collection = Zotero.Collections.get(collectionID);
+  // Kept from the start: the folder may be gone by the time the tab closes.
+  const record: OpenTab | null = collection
+    ? { libraryID: collection.libraryID, collectionKey: collection.key }
+    : null;
   const { container } = manager.add({
     id: tabID,
     type: TAB_TYPE,
     title: titleOf(collectionID),
-    data: { collectionID },
-    select: true,
+    data: { collectionID, icon: TAB_ICON },
+    select,
     onClose: () => {
       views.delete(tabID);
+      // The reader closed it, so its record goes; quitting or shutting down
+      // has frozen the record first, and this writes nothing.
+      if (record) writeRecord(withoutTab(readRecord(), record));
     },
   });
+  if (record) writeRecord(withTab(readRecord(), record));
   container.classList.add("mr-tab-content");
   container.addEventListener("tab-selection-change", (event: Event) => {
     if ((event as CustomEvent<{ selected?: boolean }>).detail?.selected) {
@@ -137,7 +180,39 @@ export function startListTabs(): void {
   });
 }
 
+/**
+ * Reopens, behind the selected tab, the list tabs open when Zotero quit or
+ * the plugin shut down, and forgets those whose folder or list is gone.
+ */
+export function reopenListTabs(
+  win: _ZoteroTypes.MainWindow = Zotero.getMainWindow(),
+): void {
+  if (!win) return;
+  const kept: OpenTab[] = [];
+  recordFrozen = true;
+  try {
+    for (const tab of readRecord()) {
+      const collection = Zotero.Collections.getByLibraryAndKey(
+        tab.libraryID,
+        tab.collectionKey,
+      );
+      if (!collection || !listFor(collection.id)) continue;
+      try {
+        openListTab(collection.id, win, { select: false });
+        kept.push(tab);
+      } catch (error) {
+        report(error);
+      }
+    }
+  } finally {
+    recordFrozen = false;
+  }
+  writeRecord(kept);
+}
+
 export function closeListTabs(): void {
+  // Before the tabs close, so closing them keeps their record for next time.
+  freezeOpenTabs();
   unsubscribe?.();
   unsubscribe = null;
   for (const [tabID, view] of [...views]) {

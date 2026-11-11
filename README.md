@@ -24,7 +24,8 @@ Meristema Reading is a Zotero 9 and 10 plugin built from this repo.
   and drop a step there to take it out. Click a state to move it through
   Unread, Reading and Read, and type a reason under a step.
 - **Open Reading List** (folder menu, or Open as Tab in the section): the same
-  list as full-width cards, reasons in full.
+  list as full-width cards, reasons in full. List tabs open when Zotero quits
+  come back when it starts.
 
 `npm start` runs it in a dev Zotero (copy `.env.example` to `.env` first),
 `npm test` runs the Zotero suite, and `npm run check` runs prettier, eslint,

@@ -1,0 +1,6 @@
+.icon-item-type[data-item-type="meristema-reading-list"] {
+  width: 16px;
+  height: 16px;
+  background: url("chrome://__addonRef__/content/icons/reading.svg") center /
+    16px 16px no-repeat;
+}

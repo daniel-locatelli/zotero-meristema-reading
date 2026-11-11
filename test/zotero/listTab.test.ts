@@ -22,6 +22,9 @@ import {
 const OPEN = `${config.addonRef}-open-reading-list`;
 const TAB_TYPE = `${config.addonRef}-list`;
 const TOPIC = "Tab fixture";
+const OPEN_TABS = `extensions.${config.addonRef}.openTabs`;
+const ICON = "meristema-reading-list";
+const LOGO = `chrome://${config.addonRef}/content/icons/reading.svg`;
 
 describe("The list tab", function () {
   this.timeout(60_000);
@@ -35,6 +38,21 @@ describe("The list tab", function () {
     (win.Zotero_Tabs._tabs as any[]).filter((tab) => tab.type === TAB_TYPE);
   const view = () =>
     win.document.querySelector(".mr-list.mr-tab") as HTMLElement | null;
+  /** The folder keys the plugin's open-tab record holds. */
+  const recorded = (): string[] => {
+    try {
+      const raw = JSON.parse(String(Zotero.Prefs.get(OPEN_TABS, true) ?? ""));
+      return Array.isArray(raw)
+        ? raw.map((tab: any) => String(tab?.collectionKey))
+        : [];
+    } catch {
+      return [];
+    }
+  };
+  const tabIcon = (tabID: string): HTMLElement | null =>
+    win.document.querySelector(
+      `#tab-bar-container .tab[data-id="${tabID}"] .icon-item-type`,
+    );
 
   async function openFromMenu(): Promise<void> {
     win.Zotero_Tabs.select("zotero-pane");
@@ -54,6 +72,7 @@ describe("The list tab", function () {
 
   before(async function () {
     win = Zotero.getMainWindows()[0];
+    Zotero.Prefs.clear(OPEN_TABS, true);
     collection = new Zotero.Collection();
     collection.libraryID = Zotero.Libraries.userLibraryID;
     collection.name = TOPIC;
@@ -80,6 +99,7 @@ describe("The list tab", function () {
 
   after(async function () {
     for (const tab of listTabs()) win.Zotero_Tabs.close(tab.id);
+    Zotero.Prefs.clear(OPEN_TABS, true);
     win.Zotero_Tabs.select("zotero-pane");
     await win.ZoteroPane.collectionsView.selectLibrary(
       Zotero.Libraries.userLibraryID,
@@ -237,9 +257,75 @@ describe("The list tab", function () {
     expect(win.Zotero_Tabs.selectedID).to.equal(listTabs()[0].id);
   });
 
-  it("closes", async function () {
+  it("shows the logo, and comes back in the background after a restart", async function () {
+    const tabID = listTabs()[0].id;
+    const icon = () => {
+      const elem = tabIcon(tabID);
+      return {
+        type: elem?.getAttribute("data-item-type") ?? null,
+        image: elem ? win.getComputedStyle(elem).backgroundImage : null,
+      };
+    };
+    const before = icon();
+    expect(before.type, `the tab's icon: ${JSON.stringify(before)}`).to.equal(
+      ICON,
+    );
+    expect(before.image, "the icon draws the logo").to.contain(LOGO);
+    expect(recorded(), "the open tab is recorded").to.deep.equal([
+      collection.key,
+    ]);
+    win.Zotero_Tabs.select("zotero-pane");
+    // Disabling and enabling runs the plugin's real shutdown and startup, in
+    // a fresh copy, as a restart does.
+    const { AddonManager } = (globalThis as any).ChromeUtils.importESModule(
+      "resource://gre/modules/AddonManager.sys.mjs",
+    );
+    const addon = await AddonManager.getAddonByID(config.addonID);
+    await addon.disable();
+    const closed = await waitFor(() => listTabs().length === 0, 10_000);
+    expect(closed, "disabling closes the tab").to.equal(true);
+    expect(recorded(), "disabling keeps the record").to.deep.equal([
+      collection.key,
+    ]);
+    await addon.enable();
+    const started = await waitFor(
+      () => (Zotero as any)[config.addonInstance]?.data?.initialized,
+      30_000,
+    );
+    expect(started, "the plugin starts again").to.equal(true);
+    const back = await waitFor(() => listTabs()[0], 10_000);
+    const seen = () =>
+      JSON.stringify({
+        tabs: (win.Zotero_Tabs._tabs as any[]).map((tab) => tab.type),
+        selected: win.Zotero_Tabs.selectedID,
+        record: recorded(),
+        icon: icon(),
+      });
+    expect(back, `the tab is back: ${seen()}`).to.exist;
+    expect(back!.id, "the same tab").to.equal(tabID);
+    expect(
+      win.Zotero_Tabs.selectedID,
+      `the library tab stays selected: ${seen()}`,
+    ).to.equal("zotero-pane");
+    const drawn = await waitFor(() => icon().type === ICON, 10_000);
+    expect(drawn, `the restored tab's icon: ${seen()}`).to.equal(true);
+    expect(icon().image, "the icon draws the logo").to.contain(LOGO);
+    expect(recorded(), "one record, not two").to.deep.equal([collection.key]);
+    win.Zotero_Tabs.select(tabID);
+    const shown = await waitFor(
+      () => rowKeys(view(), ".mr-step").join() === [x.key, y.key].join(),
+      10_000,
+    );
+    expect(
+      shown,
+      `the restored tab's cards: ${rowKeys(view(), ".mr-step")}`,
+    ).to.equal(true);
+  });
+
+  it("closes, and forgets the tab", async function () {
     win.Zotero_Tabs.close(listTabs()[0].id);
     const gone = await waitFor(() => !view(), 10_000);
     expect(gone, "the tab's view is gone").to.equal(true);
+    expect(recorded(), "the record no longer holds it").to.deep.equal([]);
   });
 });
