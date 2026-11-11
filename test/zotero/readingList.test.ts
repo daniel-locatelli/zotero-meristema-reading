@@ -243,6 +243,63 @@ describe("Reading lists", function () {
     }
   });
 
+  it("re-sorts a list sorted by Step when the order changes, keeping the selection", async function () {
+    await win.ZoteroPane.collectionsView.selectCollection(collection.id);
+    await win.ZoteroPane.itemsView.waitForLoad();
+    const view = win.ZoteroPane.itemsView;
+    const columns = () => view.tree._columns._columns as any[];
+    const column = stepColumn();
+    expect(column, "the Step column in the item list").to.exist;
+    const wasHidden = Boolean(column.hidden);
+    if (wasHidden) view.tree._columns.toggleHidden(columns().indexOf(column));
+    const previous = columns().find((c: any) => c.sortDirection);
+    const previousDirection = previous?.sortDirection;
+    const keys = () => {
+      const out: string[] = [];
+      for (let i = 0; i < view.rowCount; i++) out.push(view.getRow(i).ref.key);
+      return out;
+    };
+    const named = (rows: string[]) =>
+      `rows ${rows.join()}; bravo ${bravo.key}, alpha ${alpha.key}`;
+    try {
+      await view._handleColumnSort(columns().indexOf(stepColumn()), 1);
+      await view.waitForLoad();
+      const first = keys();
+      expect(
+        first.indexOf(bravo.key) < first.indexOf(alpha.key),
+        `sorted by Step, Bravo (1) before alpha (2); ${named(first)}`,
+      ).to.equal(true);
+      await view.selectItem(alpha.id);
+      await writeSteps([alpha.key, bravo.key]);
+      await idle();
+      await waitFor(() => {
+        const rows = keys();
+        return rows.indexOf(alpha.key) < rows.indexOf(bravo.key);
+      }, 10_000);
+      const rows = keys();
+      expect(
+        rows.indexOf(alpha.key) < rows.indexOf(bravo.key),
+        `alpha (1) before Bravo (2) after the reorder; ${named(rows)}`,
+      ).to.equal(true);
+      expect(
+        view.getSelectedItems(true),
+        "the selection stays on alpha",
+      ).to.deep.equal([alpha.id]);
+    } finally {
+      const now = columns().find((c: any) => c.sortDirection);
+      if (previous && previous !== now) {
+        await view._handleColumnSort(
+          columns().indexOf(previous),
+          previousDirection,
+        );
+      }
+      if (Boolean(stepColumn()?.hidden) !== wasHidden)
+        view.tree._columns.toggleHidden(columns().indexOf(stepColumn()));
+      await writeSteps([bravo.key, alpha.key]);
+      await idle();
+    }
+  });
+
   it("redraws the column and the views only when a cell or a list changes", async function () {
     const api = plugin().api;
     // An unrelated folder and paper, and a child note of a listed paper.

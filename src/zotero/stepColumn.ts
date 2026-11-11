@@ -52,7 +52,8 @@ export async function registerStepColumn(): Promise<void> {
 
 /**
  * Draws the column again. Zotero re-queries the item list and restores its
- * selection for this, so callers ask only when a cell changed.
+ * selection for this, so callers ask only when a cell changed. A list sorted
+ * by Step is sorted again: the item tree's `sort()` keeps the selection.
  */
 export function refreshStepColumn(): void {
   refreshes++;
@@ -60,6 +61,11 @@ export function refreshStepColumn(): void {
     Zotero.ItemTreeManager.refreshColumns();
   } catch (error) {
     report(error);
+  }
+  for (const win of Zotero.getMainWindows()) {
+    const view = (win as any).ZoteroPane?.itemsView;
+    if (!dataKey || !view || view.getSortField?.() !== dataKey) continue;
+    void Promise.resolve(view.sort()).catch(report);
   }
 }
 
