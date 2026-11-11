@@ -63,9 +63,15 @@ export function refreshStepColumn(): void {
     report(error);
   }
   for (const win of Zotero.getMainWindows()) {
-    const view = (win as any).ZoteroPane?.itemsView;
-    if (!dataKey || !view || view.getSortField?.() !== dataKey) continue;
-    void Promise.resolve(view.sort()).catch(report);
+    // One window's item tree failing, even before it is built, must not
+    // skip the other windows or the caller's own redraws.
+    try {
+      const view = (win as any).ZoteroPane?.itemsView;
+      if (!dataKey || !view || view.getSortField?.() !== dataKey) continue;
+      Promise.resolve(view.sort()).catch(report);
+    } catch (error) {
+      report(error);
+    }
   }
 }
 

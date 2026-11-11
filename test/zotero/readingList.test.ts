@@ -300,6 +300,33 @@ describe("Reading lists", function () {
     }
   });
 
+  it("still redraws the views when one item tree's sort throws", async function () {
+    await win.ZoteroPane.collectionsView.selectCollection(collection.id);
+    await win.ZoteroPane.itemsView.waitForLoad();
+    const view = win.ZoteroPane.itemsView;
+    const key = plugin().api.stepColumnKey() as string;
+    const realSort = view.getSortField;
+    const realRun = view.sort;
+    view.getSortField = () => key;
+    view.sort = () => {
+      throw new Error("sort not ready");
+    };
+    try {
+      const before = plugin().api.changesEmitted() as number;
+      await writeSteps([alpha.key, bravo.key]);
+      await idle();
+      expect(
+        plugin().api.changesEmitted() as number,
+        "views redrawn although sort threw",
+      ).to.be.greaterThan(before);
+    } finally {
+      view.getSortField = realSort;
+      view.sort = realRun;
+      await writeSteps([bravo.key, alpha.key]);
+      await idle();
+    }
+  });
+
   it("redraws the column and the views only when a cell or a list changes", async function () {
     const api = plugin().api;
     // An unrelated folder and paper, and a child note of a listed paper.
