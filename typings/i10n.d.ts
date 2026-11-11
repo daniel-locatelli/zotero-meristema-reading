@@ -9,5 +9,9 @@ export type FluentMessageId =
   | 'mark-submenu'
   | 'mark-unread'
   | 'open-reading-list'
+  | 'pref-paper-label-author-year'
+  | 'pref-paper-label-author-year-title'
+  | 'pref-paper-label-heading'
+  | 'pref-paper-label-title'
   | 'section-header'
   | 'section-sidenav';

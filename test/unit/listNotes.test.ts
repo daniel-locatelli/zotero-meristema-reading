@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import { expect } from "chai";
 import {
+  labelStyleOf,
   newListOrder,
+  paperLabel,
   pickListNote,
   stepLabel,
 } from "../../src/domain/listNotes";
@@ -107,5 +109,61 @@ describe("stepLabel", () => {
     expect(stepLabel({ creator: "Ada", year: "c.19", title: "T" })).to.equal(
       "Ada, T",
     );
+  });
+});
+
+describe("paperLabel", () => {
+  const parts = { creator: "Lovelace", year: "1843", title: "Notes" };
+
+  it("shows author and year", () => {
+    expect(paperLabel(parts, "author-year")).to.equal("Lovelace, 1843");
+  });
+
+  it("shows the title alone", () => {
+    expect(paperLabel(parts, "title")).to.equal("Notes");
+  });
+
+  it("shows author, year and title, as the note does", () => {
+    expect(paperLabel(parts, "author-year-title")).to.equal(
+      "Lovelace, 1843, Notes",
+    );
+  });
+
+  it("drops a year that is not one, and falls back to the title without either", () => {
+    expect(
+      paperLabel({ creator: "Ada", year: "c.19", title: "T" }, "author-year"),
+    ).to.equal("Ada");
+    expect(
+      paperLabel({ creator: " ", year: "0000", title: "Notes" }, "author-year"),
+    ).to.equal("Notes");
+    expect(
+      paperLabel({ creator: "", year: "1843", title: "Notes" }, "author-year"),
+    ).to.equal("1843");
+    expect(
+      paperLabel({ creator: "", year: "", title: " " }, "author-year"),
+    ).to.equal("Untitled");
+  });
+
+  it("names an untitled paper", () => {
+    expect(
+      paperLabel({ creator: "Ada", year: "1843", title: "  " }, "title"),
+    ).to.equal("Untitled");
+    expect(
+      paperLabel(
+        { creator: "Ada", year: "1843", title: "" },
+        "author-year-title",
+      ),
+    ).to.equal("Ada, 1843, Untitled");
+  });
+});
+
+describe("labelStyleOf", () => {
+  it("reads the three styles, and anything else as the default", () => {
+    expect(labelStyleOf("author-year")).to.equal("author-year");
+    expect(labelStyleOf("title")).to.equal("title");
+    expect(labelStyleOf("author-year-title")).to.equal("author-year-title");
+    expect(labelStyleOf("")).to.equal("author-year-title");
+    expect(labelStyleOf(undefined)).to.equal("author-year-title");
+    expect(labelStyleOf(3)).to.equal("author-year-title");
   });
 });

@@ -1,5 +1,11 @@
 import { liveSteps, sameSteps } from "../domain/listEdits";
-import { newListOrder, pickListNote, stepLabel } from "../domain/listNotes";
+import {
+  newListOrder,
+  paperLabel,
+  pickListNote,
+  stepLabel,
+  type LabelParts,
+} from "../domain/listNotes";
 import { stepCells } from "../domain/stepColumn";
 import type { ParseFailure } from "../format/common";
 import { paperId } from "../format/readState";
@@ -13,6 +19,7 @@ import {
 } from "../format/readingList";
 import { Refusal } from "./alerts";
 import { isTaggedNote, libraryLinkOf, paperRefOf } from "./items";
+import { currentStyle } from "./preferences";
 import { enqueue } from "./queue";
 
 export interface FolderList {
@@ -139,10 +146,12 @@ function readList(collectionID: number): FolderList | null {
     title: String(item.getField("title")),
   }));
   const resolved = resolveReadingList(pick.parsed.value, folder);
-  // A paper's label, and its read-state id, which picks the state it shows.
+  // A paper's label, in the style the reader chose, and its read-state id,
+  // which picks the state it shows.
+  const style = currentStyle();
   const drawn = papers.map((item) => [
     item.key,
-    labelOf(item),
+    paperLabel(partsOf(item), style),
     paperId(paperRefOf(item)),
   ]);
   return {
@@ -157,6 +166,7 @@ function readList(collectionID: number): FolderList | null {
       pick.parsed.value,
       resolved,
       ignored,
+      style,
       drawn,
     ]),
   };
@@ -173,12 +183,18 @@ export function listFor(collectionID: number): FolderList | null {
   return cache.get(collectionID) ?? null;
 }
 
-export function labelOf(item: Zotero.Item): string {
-  return stepLabel({
+/** What a paper's labels are made of. */
+export function partsOf(item: Zotero.Item): LabelParts {
+  return {
     creator: String(item.getField("firstCreator")),
     year: String(item.getField("date", true, true)).slice(0, 4),
     title: String(item.getField("title")),
-  });
+  };
+}
+
+/** A paper's label in the list note, which the format fixes. */
+function labelOf(item: Zotero.Item): string {
+  return stepLabel(partsOf(item));
 }
 
 /**

@@ -14,6 +14,10 @@ import {
 } from "./zotero/listTab";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
+import {
+  registerPreferences,
+  unregisterPreferences,
+} from "./zotero/preferences";
 import { stopQueue } from "./zotero/queue";
 import { report } from "./zotero/report";
 import { resetStateStore, startStateStore } from "./zotero/stateStore";
@@ -90,6 +94,12 @@ async function onStartup(): Promise<void> {
   } catch (error) {
     report(error);
   }
+  // A pane that fails to register leaves the lists drawn in the default style.
+  try {
+    await registerPreferences();
+  } catch (error) {
+    report(error);
+  }
   registerMenus();
   addon.data.initialized = true;
 }
@@ -110,6 +120,7 @@ async function onShutdown(_appShutdown: boolean): Promise<void> {
     quitObserverInstalled = false;
   }
   closeListTabs();
+  unregisterPreferences();
   unregisterListSection();
   unregisterMenus();
   unregisterStepColumn();

@@ -5,10 +5,12 @@ import {
   shiftStep,
   unplaceStep,
 } from "../domain/listEdits";
+import { paperLabel } from "../domain/listNotes";
 import type { ReadingListStep, ResolvedStep } from "../format/readingList";
 import { nextUp, type ReadState } from "../format/readState";
 import { failedWith } from "./alerts";
-import { editList, labelOf, listFor } from "./listStore";
+import { editList, listFor, partsOf } from "./listStore";
+import { currentStyle } from "./preferences";
 import { enqueue } from "./queue";
 import { report } from "./report";
 import { markItems, stateOfItem } from "./stateStore";
@@ -310,6 +312,7 @@ export function renderList(
     change: (steps: ReadingListStep[]) => ReadingListStep[],
   ): Promise<void> => editList(collectionID, change).catch(failed);
   const next = nextUp(list.resolved.steps, stateOfKey);
+  const style = currentStyle();
 
   container.append(element(doc, "div", "mr-topic", list.doc.topic));
   if (!editable) {
@@ -338,7 +341,12 @@ export function renderList(
       event.stopPropagation();
       if (item) void markItems([item], nextState(state)).catch(failed);
     });
-    const title = element(doc, "span", "mr-title", item ? labelOf(item) : key);
+    const title = element(
+      doc,
+      "span",
+      "mr-title",
+      item ? paperLabel(partsOf(item), style) : key,
+    );
     title.addEventListener("click", () => {
       if (item) void showInLibrary(doc, collectionID, item.id).catch(report);
     });
