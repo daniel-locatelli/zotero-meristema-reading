@@ -15,6 +15,7 @@ import {
   markThroughMenu,
   plugin,
   stateNotes,
+  withLoggedErrors,
 } from "./helpers";
 
 const CLEAR = `${config.addonRef}-clear-reading-list`;
@@ -39,21 +40,58 @@ describe("Clearing a reading list", function () {
   const stateHtml = async (): Promise<string> =>
     (await stateNotes()).map((n) => n.getNote()).join("|");
 
+  /** What the dialog was asked with: its text, buttons and button flags. */
+  interface Asked {
+    text: string;
+    flags: number;
+    button0: string | null;
+  }
+  /** The flags the dialog should pass: Clear, then Cancel as the default. */
+  const clearFlags = (): number => {
+    const p = Services.prompt as any;
+    return (
+      p.BUTTON_POS_0 * p.BUTTON_TITLE_IS_STRING +
+      p.BUTTON_POS_1 * p.BUTTON_TITLE_CANCEL +
+      p.BUTTON_POS_1_DEFAULT
+    );
+  };
+  const warning = (count: string) =>
+    `Clear Reading List: Clear the ${count} of “Clear fixture”? Their papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`;
+
   /** Runs the menu command with Services.prompt answering `button`. */
-  async function clearWith(button: number): Promise<string[]> {
-    const asked: string[] = [];
+  async function clearWith(button: number): Promise<Asked[]> {
+    const asked: Asked[] = [];
     const services = Services as any;
     const own = Object.getOwnPropertyDescriptor(services, "prompt");
+    const real = services.prompt;
+    const stub: Record<string, unknown> = {
+      confirmEx(
+        _w: unknown,
+        title: string,
+        text: string,
+        flags: number,
+        button0: string | null,
+      ) {
+        asked.push({ text: `${title}: ${text}`, flags, button0 });
+        return button;
+      },
+      alert() {},
+    };
+    for (const name of [
+      "BUTTON_POS_0",
+      "BUTTON_POS_1",
+      "BUTTON_POS_2",
+      "BUTTON_TITLE_IS_STRING",
+      "BUTTON_TITLE_CANCEL",
+      "BUTTON_TITLE_OK",
+      "BUTTON_POS_1_DEFAULT",
+      "STD_OK_CANCEL_BUTTONS",
+    ]) {
+      stub[name] = real[name];
+    }
     Object.defineProperty(services, "prompt", {
       configurable: true,
-      value: {
-        STD_OK_CANCEL_BUTTONS: 513,
-        confirmEx(_w: unknown, title: string, text: string) {
-          asked.push(`${title}: ${text}`);
-          return button;
-        },
-        alert() {},
-      },
+      value: stub,
     });
     try {
       const { popup, entry } = await collectionMenuEntry(
@@ -118,13 +156,53 @@ describe("Clearing a reading list", function () {
 
   it("changes nothing when cancelled, after asking", async function () {
     const states = await stateHtml();
-    const asked = await clearWith(1);
-    expect(asked, "one warning").to.have.length(1);
-    expect(asked[0]).to.contain(
-      "Clear the steps of “Clear fixture”? Its 3 papers",
-    );
+    const { asked, errors } = await withLoggedErrors(async (errors) => ({
+      asked: await clearWith(1),
+      errors,
+    }));
+    expect(errors, "the button's string is found").to.deep.equal([]);
+    expect(
+      asked,
+      "one warning, Clear then Cancel as the default",
+    ).to.deep.equal([
+      { text: warning("3 steps"), flags: clearFlags(), button0: "Clear" },
+    ]);
+    expect(
+      clearFlags() & (Services.prompt as any).BUTTON_POS_1_DEFAULT,
+      "Enter cancels",
+    ).to.not.equal(0);
     expect(stepKeys(), "steps kept").to.deep.equal(papers.map((p) => p.key));
     expect(await stateHtml(), "read states kept").to.equal(states);
+  });
+
+  it("names a single step in the singular", async function () {
+    const list = note(collection);
+    const before = list.getNote();
+    list.setNote(
+      writeReadingList(
+        {
+          version: 1,
+          topic: "Clear fixture",
+          steps: [{ key: papers[0].key, why: "" }],
+        },
+        (k) => k,
+        { kind: "user" },
+      ),
+    );
+    await list.saveTx({ skipSelect: true });
+    await idle();
+    try {
+      const asked = await clearWith(1);
+      expect(
+        asked.map((a) => a.text),
+        "the warning",
+      ).to.deep.equal([warning("1 step")]);
+      expect(stepKeys(), "the step kept").to.deep.equal([papers[0].key]);
+    } finally {
+      list.setNote(before);
+      await list.saveTx({ skipSelect: true });
+      await idle();
+    }
   });
 
   it("is hidden for a folder with no list", async function () {

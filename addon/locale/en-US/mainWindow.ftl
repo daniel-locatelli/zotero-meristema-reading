@@ -17,3 +17,5 @@ open-reading-list =
     .label = Open Reading List
 clear-reading-list =
     .label = Clear Reading List…
+# The Clear Reading List dialog's button that clears.
+clear-reading-list-confirm = Clear

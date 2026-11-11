@@ -113,6 +113,24 @@ function clearableSteps(collectionID: number): number | null {
   return list.resolved.steps.length;
 }
 
+/** The dialog's Clear button, from the window's strings. */
+function clearLabel(win: _ZoteroTypes.MainWindow): string {
+  try {
+    const strings = new (win as any).Localization(
+      [`${config.addonRef}-mainWindow.ftl`],
+      true,
+    );
+    const label = strings.formatValueSync(
+      `${config.addonRef}-clear-reading-list-confirm`,
+    ) as string | null;
+    if (label) return label;
+    throw new Error("Meristema Reading has no string for the Clear button.");
+  } catch (error) {
+    report(error);
+  }
+  return "Clear";
+}
+
 function collectionMenus(): MenuData[] {
   return [
     {
@@ -170,13 +188,19 @@ function collectionMenus(): MenuData[] {
         if (!count) return;
         const win = contextWindow(context);
         const topic = listFor(id)?.doc?.topic ?? "";
+        const prompt = Services.prompt as any;
+        // Clear, then Cancel as the default, so Enter keeps the steps.
+        const flags =
+          prompt.BUTTON_POS_0 * prompt.BUTTON_TITLE_IS_STRING +
+          prompt.BUTTON_POS_1 * prompt.BUTTON_TITLE_CANCEL +
+          prompt.BUTTON_POS_1_DEFAULT;
         const ok =
-          Services.prompt.confirmEx(
+          prompt.confirmEx(
             win as any,
             "Clear Reading List",
-            `Clear the steps of “${topic}”? Its ${count} papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`,
-            Services.prompt.STD_OK_CANCEL_BUTTONS as number,
-            null as any,
+            `Clear the ${count} ${count === 1 ? "step" : "steps"} of “${topic}”? Their papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`,
+            flags as number,
+            clearLabel(win),
             null as any,
             null as any,
             null as any,

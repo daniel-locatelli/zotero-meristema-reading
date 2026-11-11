@@ -4,6 +4,7 @@
 // @ts-nocheck
 export type FluentMessageId =
   | 'clear-reading-list'
+  | 'clear-reading-list-confirm'
   | 'make-reading-list'
   | 'mark-read'
   | 'mark-reading'
