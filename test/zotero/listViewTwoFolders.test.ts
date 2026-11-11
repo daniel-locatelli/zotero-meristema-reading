@@ -14,6 +14,7 @@ import {
   idle,
   makeListNote,
   makePaper,
+  markThroughMenu,
   plugin,
   rowKeys,
   waitFor,
@@ -233,5 +234,83 @@ describe("Two folders' reading lists", function () {
       from.remove();
       to.remove();
     }
+  });
+
+  it("colours the read states as Meristema's graph does, in both themes", async function () {
+    await markThroughMenu(win, [second.papers[0].id], "read");
+    await markThroughMenu(win, [second.papers[1].id], "reading");
+    const draw = (collectionID: number, options: any) => {
+      const node = win.document.createElementNS(HTML, "div") as HTMLElement;
+      win.document.documentElement.append(node);
+      plugin().api.renderList(node, collectionID, options);
+      return node;
+    };
+    // The section's mode, its current row the first folder's second paper.
+    const sidebar = draw(first.collection.id, {
+      mode: "sidebar",
+      currentKey: first.papers[1].key,
+      editable: true,
+    });
+    const tab = draw(second.collection.id, {
+      mode: "tab",
+      currentKey: null,
+      editable: true,
+    });
+    const themePref = "browser.theme.toolbar-theme";
+    const hadTheme = Services.prefs.prefHasUserValue(themePref);
+    const oldTheme = Services.prefs.getIntPref(themePref, 2);
+    const dark = win.matchMedia("(prefers-color-scheme: dark)");
+    const wasDark = dark.matches;
+    const seen: Record<string, unknown> = {};
+    const colourOf = (view: HTMLElement, key: string) => {
+      const mark = view.querySelector(
+        `[data-key="${key}"] .mr-state`,
+      ) as HTMLElement;
+      return `${mark.dataset.state} ${win.getComputedStyle(mark).color}`;
+    };
+    try {
+      // 1 is Zotero's light appearance, 0 its dark one.
+      for (const [name, value] of [
+        ["light", 1],
+        ["dark", 0],
+      ] as const) {
+        Services.prefs.setIntPref(themePref, value);
+        const switched = await waitFor(
+          () => dark.matches === (name === "dark"),
+          10_000,
+        );
+        expect(switched, `the window turns ${name}`).to.equal(true);
+        const current = sidebar.querySelector(".mr-current") as HTMLElement;
+        seen[name] = {
+          sidebarUnread: colourOf(sidebar, first.papers[0].key),
+          tabRead: colourOf(tab, second.papers[0].key),
+          tabReading: colourOf(tab, second.papers[1].key),
+          currentMarkIsRowText:
+            win.getComputedStyle(current.querySelector(".mr-state")!).color ===
+            win.getComputedStyle(current).color,
+        };
+      }
+    } finally {
+      if (hadTheme) Services.prefs.setIntPref(themePref, oldTheme);
+      else Services.prefs.clearUserPref(themePref);
+      await waitFor(() => dark.matches === wasDark, 10_000);
+      sidebar.remove();
+      tab.remove();
+    }
+    expect(seen, "the state marks' colours").to.deep.equal({
+      light: {
+        sidebarUnread: "unread rgb(179, 38, 30)",
+        tabRead: "read rgb(45, 130, 71)",
+        tabReading: "reading rgb(176, 133, 0)",
+        currentMarkIsRowText: true,
+      },
+      dark: {
+        sidebarUnread: "unread rgb(229, 83, 75)",
+        tabRead: "read rgb(87, 179, 108)",
+        tabReading: "reading rgb(232, 197, 71)",
+        currentMarkIsRowText: true,
+      },
+    });
+    expect(dark.matches, "the theme is back as it was").to.equal(wasDark);
   });
 });

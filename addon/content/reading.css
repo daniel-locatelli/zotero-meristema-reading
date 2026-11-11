@@ -1,3 +1,16 @@
+/* The read states' colours, as Meristema's graph draws them, per theme. */
+.mr-list {
+  --mr-state-unread: #b3261e;
+  --mr-state-reading: #b08500;
+  --mr-state-read: #2d8247;
+}
+@media (prefers-color-scheme: dark) {
+  .mr-list {
+    --mr-state-unread: #e5534b;
+    --mr-state-reading: #e8c547;
+    --mr-state-read: #57b36c;
+  }
+}
 .mr-list {
   display: flex;
   flex-direction: column;
@@ -76,11 +89,14 @@
 .mr-state {
   font-size: 0.9em;
 }
+.mr-state[data-state="unread"] {
+  color: var(--mr-state-unread);
+}
 .mr-state[data-state="reading"] {
-  color: var(--color-accent);
+  color: var(--mr-state-reading);
 }
 .mr-state[data-state="read"] {
-  color: var(--fill-secondary);
+  color: var(--mr-state-read);
 }
 /* Zotero's item-list selection; after the state colours, so it wins them. */
 .mr-current {
