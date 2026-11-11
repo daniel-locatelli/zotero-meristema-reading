@@ -1,7 +1,7 @@
 import { config } from "../../package.json";
 import type { ReadState } from "../format/readState";
 import { failedWith } from "./alerts";
-import { listFor, makeReadingList } from "./listStore";
+import { editList, listFor, makeReadingList } from "./listStore";
 import { openListTab } from "./listTab";
 import { libraryEditable } from "./listView";
 import { report } from "./report";
@@ -104,6 +104,15 @@ function shownKeys(
   return (pane.getSortedItems() as Zotero.Item[]).map((item) => item.key);
 }
 
+/** The steps the folder's list has, when it can be read in an editable library. */
+function clearableSteps(collectionID: number): number | null {
+  const collection = Zotero.Collections.get(collectionID);
+  const list = listFor(collectionID);
+  if (!collection || !list?.resolved) return null;
+  if (!libraryEditable(collection.libraryID)) return null;
+  return list.resolved.steps.length;
+}
+
 function collectionMenus(): MenuData[] {
   return [
     {
@@ -141,6 +150,45 @@ function collectionMenus(): MenuData[] {
       onCommand: (_event: Event, context: any) => {
         const id = contextCollectionID(context);
         if (id !== null) openListTab(id, contextWindow(context));
+      },
+    },
+    {
+      menuType: "menuitem",
+      l10nID: `${config.addonRef}-clear-reading-list`,
+      icon: ICON,
+      onShowing: (_event: Event, context: any) => {
+        const id = contextCollectionID(context);
+        const available = id !== null && clearableSteps(id) !== null;
+        context.setVisible(available);
+        context.setEnabled(available);
+      },
+      onCommand: (_event: Event, context: any) => {
+        const id = contextCollectionID(context);
+        if (id === null) return;
+        const count = clearableSteps(id);
+        if (!count) return;
+        const win = contextWindow(context);
+        const topic = listFor(id)?.doc?.topic ?? "";
+        const ok =
+          Services.prompt.confirmEx(
+            win as any,
+            "Clear Reading List",
+            `Clear the steps of “${topic}”? Its ${count} papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`,
+            Services.prompt.STD_OK_CANCEL_BUTTONS as number,
+            null as any,
+            null as any,
+            null as any,
+            null as any,
+            { value: false },
+          ) === 0;
+        if (ok) {
+          void editList(id, () => []).catch(
+            failedWith(
+              "Meristema Reading could not clear the reading list. See the error console.",
+              win,
+            ),
+          );
+        }
       },
     },
   ];

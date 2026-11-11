@@ -15,3 +15,5 @@ section-sidenav =
     .tooltiptext = Reading list
 open-reading-list =
     .label = Open Reading List
+clear-reading-list =
+    .label = Clear Reading List…

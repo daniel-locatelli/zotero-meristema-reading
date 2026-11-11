@@ -3,6 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'clear-reading-list'
   | 'make-reading-list'
   | 'mark-read'
   | 'mark-reading'
