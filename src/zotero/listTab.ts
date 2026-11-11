@@ -68,12 +68,20 @@ export function installTabHooks(win: _ZoteroTypes.MainWindow): void {
  * other tab, and a pane left open by a reader tab stays open (as Meristema's
  * graph tab found).
  */
+const SPLITTER_IDS = [
+  "zotero-context-splitter",
+  "zotero-context-splitter-stacked",
+];
+
 function hideContextPane(
   win: _ZoteroTypes.MainWindow,
   container: HTMLElement,
 ): void {
   const controller = (win as any).ZoteroContextPane;
   controller?.splitter?.setAttribute?.("hidden", "true");
+  for (const id of SPLITTER_IDS) {
+    win.document.getElementById(id)?.setAttribute("hidden", "true");
+  }
   win.document
     .getElementById("zotero-context-pane")
     ?.setAttribute("collapsed", "true");
@@ -136,6 +144,7 @@ export function openListTab(
   const record: OpenTab | null = collection
     ? { libraryID: collection.libraryID, collectionKey: collection.key }
     : null;
+  let splitterWatch: MutationObserver | null = null;
   const { container } = manager.add({
     id: tabID,
     type: TAB_TYPE,
@@ -144,6 +153,7 @@ export function openListTab(
     select,
     onClose: () => {
       views.delete(tabID);
+      splitterWatch?.disconnect();
       // The reader closed it, so its record goes; quitting or shutting down
       // has frozen the record first, and this writes nothing.
       if (record) writeRecord(withoutTab(readRecord(), record));
@@ -158,6 +168,27 @@ export function openListTab(
   });
   // The tab was selected inside add(), before the listener was there.
   if (manager.selectedID === tabID) hideContextPane(win, container);
+  // Zotero lays the context pane out again on a window resize, and when its
+  // tab-select notifier reaches the pane after the tab's own selection event;
+  // either shows the splitter over any tab but the library's. It is hidden
+  // again whenever that happens over this tab.
+  splitterWatch = new win.MutationObserver(() => {
+    if (manager.selectedID !== tabID) return;
+    const shown = SPLITTER_IDS.some(
+      (id) =>
+        win.document.getElementById(id)?.getAttribute("hidden") !== "true",
+    );
+    if (shown) hideContextPane(win, container);
+  });
+  for (const id of SPLITTER_IDS) {
+    const splitter = win.document.getElementById(id);
+    if (splitter) {
+      splitterWatch!.observe(splitter, {
+        attributes: true,
+        attributeFilter: ["hidden"],
+      });
+    }
+  }
   const scroll = container.ownerDocument.createElementNS(
     "http://www.w3.org/1999/xhtml",
     "div",

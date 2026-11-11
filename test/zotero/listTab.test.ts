@@ -146,6 +146,34 @@ describe("The list tab", function () {
     });
   });
 
+  it("keeps Zotero's context pane shut when Zotero lays it out again", async function () {
+    win.Zotero_Tabs.select(listTabs()[0].id);
+    const splitter = win.document.getElementById("zotero-context-splitter");
+    const stacked = win.document.getElementById(
+      "zotero-context-splitter-stacked",
+    );
+    // A window resize runs Zotero's context-pane layout, as the tab-select
+    // notifier does when it reaches the pane late; it shows the splitter for
+    // any tab but the library's.
+    win.dispatchEvent(new win.Event("resize"));
+    await delay(100);
+    const seen = {
+      splitterHidden: splitter?.getAttribute("hidden"),
+      stackedHidden: stacked?.getAttribute("hidden"),
+      collapsed: win.document
+        .getElementById("zotero-context-pane")
+        ?.getAttribute("collapsed"),
+    };
+    expect(
+      seen,
+      `the context pane after a layout pass: ${JSON.stringify(seen)}`,
+    ).to.deep.equal({
+      splitterHidden: "true",
+      stackedHidden: "true",
+      collapsed: "true",
+    });
+  });
+
   it("reorders from the tab and rewrites the note", async function () {
     altArrow(win, view()!.querySelector(`[data-key="${y.key}"]`)!, "ArrowUp");
     await idle();
