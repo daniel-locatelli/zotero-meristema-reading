@@ -24,6 +24,8 @@ const STATE_LABEL: Record<ReadState, string> = {
 
 /** The key being dragged, shared by every view so a drag can cross rows. */
 let dragged: string | null = null;
+/** The folder whose list the drag started in: a drop takes only its own steps. */
+let draggedFrom: number | null = null;
 /** The height of the dragged row, which the slot it opens takes. */
 let draggedHeight = 0;
 
@@ -264,6 +266,7 @@ export function renderList(
   deferred.delete(container);
   // A drag whose source row is redrawn away gets no dragend.
   dragged = null;
+  draggedFrom = null;
   const keyToFocus = refocus.get(container) ?? focusedKey(container, doc);
   refocus.delete(container);
   container.replaceChildren();
@@ -308,6 +311,9 @@ export function renderList(
     const item = itemOf(key);
     return item ? stateOfItem(item) : "unread";
   };
+  /** The key dragged from this folder's list, in any view of it; else null. */
+  const draggedHere = (): string | null =>
+    draggedFrom === collectionID ? dragged : null;
   const edit = (
     change: (steps: ReadingListStep[]) => ReadingListStep[],
   ): Promise<void> => editList(collectionID, change).catch(failed);
@@ -363,6 +369,7 @@ export function renderList(
       const fromPaper = source === row && row.classList.contains("mr-paper");
       if (!fromHandle && !fromPaper) return;
       dragged = key;
+      draggedFrom = collectionID;
       const rect = row.getBoundingClientRect();
       draggedHeight = rect.height;
       const transfer = event.dataTransfer;
@@ -380,6 +387,7 @@ export function renderList(
     });
     row.addEventListener("dragend", () => {
       dragged = null;
+      draggedFrom = null;
       clearDragMarks(doc);
     });
   }
@@ -428,21 +436,32 @@ export function renderList(
       // Saves the reason as its change would, then moves the step with it.
       event.preventDefault();
       const text = why.value;
+      const previous = why.dataset.saved;
       why.dataset.saved = text;
       const caret = {
         start: why.selectionStart ?? text.length,
         end: why.selectionEnd ?? text.length,
       };
       const by = event.key === "ArrowUp" ? -1 : 1;
-      void edit((steps) =>
+      void editList(collectionID, (steps) =>
         shiftStep(setWhy(steps, step.key, text), step.key, by),
-      ).finally(() => {
-        // Typed on while it saved: the redraw waits for the blur, as ever.
-        if (why.value !== text) return;
-        refocus.set(container, { key: step.key, part: "why", caret });
-        const held = deferred.get(container) ?? { collectionID, options };
-        renderList(container, held.collectionID, held.options);
-      });
+      ).then(
+        () => {
+          // Another folder or a newer redraw took the view while it saved:
+          // drawing this one again would bring the old folder back.
+          if (!why.isConnected) return;
+          // Typed on while it saved: the redraw waits for the blur, as ever.
+          if (why.value !== text) return;
+          refocus.set(container, { key: step.key, part: "why", caret });
+          const held = deferred.get(container) ?? { collectionID, options };
+          renderList(container, held.collectionID, held.options);
+        },
+        (error: unknown) => {
+          // Not saved: the field keeps the typing, held from redraws again.
+          why.dataset.saved = previous;
+          failed(error);
+        },
+      );
     });
     row.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.target === why || !moveKey(event)) return;
@@ -459,7 +478,7 @@ export function renderList(
   for (const step of list.resolved.steps) steps.append(stepRow(step));
   if (editable) {
     steps.addEventListener("dragover", (event: DragEvent) => {
-      if (!dragged) return;
+      if (!draggedHere()) return;
       allowDrop(event);
       openSlot(doc, steps, landingIndex(steps, event.clientY));
     });
@@ -468,7 +487,7 @@ export function renderList(
       steps.querySelector(".mr-drop-slot")?.remove();
     });
     steps.addEventListener("drop", (event: DragEvent) => {
-      const moving = dragged;
+      const moving = draggedHere();
       if (!moving) return;
       event.preventDefault();
       const slot = steps.querySelector(".mr-drop-slot") as HTMLElement | null;
@@ -476,6 +495,7 @@ export function renderList(
         ? Number(slot.dataset.index)
         : landingIndex(steps, event.clientY);
       dragged = null;
+      draggedFrom = null;
       clearDragMarks(doc);
       void edit((current) => placeStepAt(current, moving, index));
     });
@@ -494,7 +514,7 @@ export function renderList(
   }
   if (editable) {
     zone.addEventListener("dragover", (event: DragEvent) => {
-      if (!dragged) return;
+      if (!draggedHere()) return;
       allowDrop(event);
       zone.classList.add("mr-drop-target");
     });
@@ -504,10 +524,11 @@ export function renderList(
       }
     });
     zone.addEventListener("drop", (event: DragEvent) => {
-      const moving = dragged;
+      const moving = draggedHere();
       if (!moving) return;
       event.preventDefault();
       dragged = null;
+      draggedFrom = null;
       clearDragMarks(doc);
       void edit((current) => unplaceStep(current, moving));
     });
