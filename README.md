@@ -9,8 +9,10 @@ Meristema Reading is a Zotero 9 and 10 plugin built from this repo.
 
 - **Mark as** (item menu): Unread, Reading or Read, for one paper or a
   selection. The state lives in one note in My Library, tagged
-  `meristema-reading-state`. It is mirrored onto `_reading` and `_read` tags in
-  My Library for Zotero apps without plugins. The mirror is one way: a tag
+  `meristema-reading-state`. It is mirrored onto `_unread`, `_reading` and
+  `_read` tags in My Library for Zotero apps without plugins. A paper gets
+  `_unread` only while it sits in a My Library folder that holds a reading
+  list; an Unread paper in no list gets no tag. The mirror is one way: a tag
   changed by hand is put back.
 - **Make Reading List** (folder menu): a note tagged `meristema-reading-list`
   holding the folder's papers in the order the item list shows them.

@@ -2,7 +2,12 @@ import { cancelChange, emitChange, isChangePending } from "./changes";
 import { reconcileLists } from "./listStore";
 import { isBusy } from "./queue";
 import { report } from "./report";
-import { itemsChanged, stateChanged, syncFinished } from "./stateStore";
+import {
+  itemsChanged,
+  listsChanged,
+  stateChanged,
+  syncFinished,
+} from "./stateStore";
 import { refreshStepColumn } from "./stepColumn";
 
 const FLUSH_DELAY_MS = 50;
@@ -10,6 +15,8 @@ let observerID: string | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let stateDirty = false;
 let listsDirty = false;
+/** A folder's papers or list note changed since the last flush. */
+let membersDirty = false;
 let syncDone = false;
 const touched = new Set<number>();
 /** Folders an event named, read again even when no view was told of them. */
@@ -62,6 +69,9 @@ function flush(): void {
     listsDirty = false;
     const folders = [...touchedFolders];
     touchedFolders.clear();
+    // A folder's papers or list note changed: who is listed, and so tagged
+    // `_unread`, may have too. Mirrored after the state note is read again.
+    membersDirty = folders.length > 0;
     try {
       // Zotero's column refresh re-queries the item list and restores its
       // selection, and a redraw cancels a drag: each only when needed.
@@ -75,6 +85,10 @@ function flush(): void {
   if (stateDirty) {
     stateDirty = false;
     void stateChanged().catch(report);
+  }
+  if (membersDirty) {
+    membersDirty = false;
+    void listsChanged().catch(report);
   }
   if (touched.size) {
     const ids = [...touched];
@@ -101,6 +115,7 @@ export function unregisterNotifier(): void {
   flushTimer = null;
   stateDirty = false;
   listsDirty = false;
+  membersDirty = false;
   syncDone = false;
   touched.clear();
   touchedFolders.clear();

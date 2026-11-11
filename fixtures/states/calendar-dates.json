@@ -38,7 +38,7 @@
     ],
     "mirror": {
       "user:ABCD2345": "_read",
-      "user:BCDE3456": null
+      "user:BCDE3456": "_unread"
     }
   }
 }

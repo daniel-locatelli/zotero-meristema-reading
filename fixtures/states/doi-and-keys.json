@@ -11,7 +11,7 @@
     "mirror": {
       "doi:10.1000/xyz": "_read",
       "user:ABCD2345": "_reading",
-      "group-123:BCDE3456": null
+      "group-123:BCDE3456": "_unread"
     }
   }
 }

@@ -26,7 +26,7 @@ Zotero note editor may leave them. Read them as UTF-8.
 - `states/<case>.json`: `{ "notes": ["<file>.html", …], "expect": … }`.
   - `{ "ok": false, "reason" }`: the case has one note, and parsing it fails
     with that reason.
-  - `{ "ok": true, "states": { id: { "state", "at" } }, "absent": [id], "mirror": { id: tag | null } }`:
+  - `{ "ok": true, "states": { id: { "state", "at" } }, "absent": [id], "mirror": { id: tag } }`:
     parse each note and merge them, starting from an empty state. Merge in
     either order: the runner merges the notes as listed and again reversed,
     and both must give this result. `states` is the full map of stored
@@ -181,9 +181,11 @@ Keys a format does not name are ignored, and the writers drop them.
   2. the later instant;
   3. read over reading over unread;
   4. the greater `at` string, by code unit (`…00Z` over `…00.000Z`).
-- Mirror tags: `_reading` for Reading, `_read` for Read, none for Unread. The
-  format layer does not decide that group items get no mirror tags; the store
-  does, and no fixture here covers it.
+- Mirror tags: `_unread` for Unread, `_reading` for Reading, `_read` for Read.
+  A store tags an Unread paper only while it is in a reading list, and that is
+  the store's call, not the format's. Neither does the format layer decide
+  that group items get no mirror tags; the store does, and no fixture here
+  covers either rule.
 
 ## Ids
 

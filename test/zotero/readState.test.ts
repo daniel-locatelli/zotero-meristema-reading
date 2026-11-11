@@ -8,9 +8,11 @@ import {
   writeReadState,
   type ReadStateDoc,
 } from "../../src/format/readState";
+import { writeReadingList } from "../../src/format/readingList";
 import {
   eraseStateNotes,
   idle,
+  makeListNote,
   makePaper,
   markThroughMenu,
   plugin,
@@ -243,5 +245,130 @@ describe("Read state", function () {
       if (ids.length) await Zotero.Items.erase(ids);
       await idle();
     }
+  });
+
+  // Folder membership, not the paper, decides whether Unread is mirrored.
+  describe("The _unread mirror", function () {
+    this.timeout(60_000);
+    let win: any;
+    let collection: any;
+    let one: Zotero.Item;
+    let two: Zotero.Item;
+    let outside: Zotero.Item;
+    let note: Zotero.Item;
+
+    const tags = (item: Zotero.Item) =>
+      item
+        .getTags()
+        .map((tag: { tag: string }) => tag.tag)
+        .sort();
+
+    before(async function () {
+      win = Zotero.getMainWindows()[0];
+      await eraseStateNotes();
+      collection = new Zotero.Collection();
+      collection.libraryID = Zotero.Libraries.userLibraryID;
+      collection.name = "Unread mirror fixture";
+      await collection.saveTx();
+      one = await makePaper(
+        "Unread mirror paper one",
+        undefined,
+        collection.id,
+      );
+      two = await makePaper(
+        "Unread mirror paper two",
+        undefined,
+        collection.id,
+      );
+      outside = await makePaper("Unread mirror paper in no list");
+      await idle();
+    });
+
+    after(async function () {
+      await win.ZoteroPane.collectionsView.selectLibrary(
+        Zotero.Libraries.userLibraryID,
+      );
+      const ids = [note, one, two, outside]
+        .filter((item) => Boolean(item?.id))
+        .map((item) => item.id);
+      await Zotero.Items.erase(ids);
+      await collection.eraseTx();
+      await eraseStateNotes();
+      await idle();
+    });
+
+    it("tags a folder's papers _unread once it holds a list, and only those", async function () {
+      expect(
+        { one: tags(one), two: tags(two) },
+        "no mirror tag before the folder holds a list",
+      ).to.deep.equal({ one: [], two: [] });
+      note = await makeListNote(
+        collection.id,
+        writeReadingList(
+          {
+            version: 1,
+            topic: "Unread mirror fixture",
+            steps: [
+              { key: one.key, why: "" },
+              { key: two.key, why: "" },
+            ],
+          },
+          (key) => key,
+          { kind: "user" },
+        ),
+      );
+      await idle();
+      expect(
+        { one: tags(one), two: tags(two), outside: tags(outside) },
+        "the listed papers tagged, the other bare",
+      ).to.deep.equal({ one: ["_unread"], two: ["_unread"], outside: [] });
+    });
+
+    it("swaps _unread for _read, in saves marked as the mirror's", async function () {
+      const modifies: Array<{ ids: number[]; extraData: any }> = [];
+      const observerID = Zotero.Notifier.registerObserver(
+        {
+          notify(event: string, _type: string, ids: any[], extraData: any) {
+            if (event === "modify") modifies.push({ ids, extraData });
+          },
+        } as any,
+        ["item"],
+        "meristema-reading-test",
+      );
+      try {
+        await markThroughMenu(win, [one.id], "read");
+      } finally {
+        Zotero.Notifier.unregisterObserver(observerID);
+      }
+      expect(
+        { one: tags(one), two: tags(two) },
+        "the Read paper's tag swapped",
+      ).to.deep.equal({ one: ["_read"], two: ["_unread"] });
+      const ofOne = modifies.filter((event) => event.ids.includes(one.id));
+      const marks = ofOne.map(
+        (event) => event.extraData?.[one.id]?.meristemaReadingMirror ?? null,
+      );
+      expect(
+        { saves: ofOne.length, marks },
+        `the mirror's saves of the paper: ${JSON.stringify(ofOne)}`,
+      ).to.deep.equal({ saves: 1, marks: [true] });
+    });
+
+    it("leaves a paper in no list bare when it is marked Unread", async function () {
+      await markThroughMenu(win, [outside.id], "read");
+      expect(tags(outside), "the paper in no list Read").to.deep.equal([
+        "_read",
+      ]);
+      await markThroughMenu(win, [outside.id], "unread");
+      expect(tags(outside), "the paper in no list Unread").to.deep.equal([]);
+    });
+
+    it("takes _unread off a paper taken out of the folder", async function () {
+      two.removeFromCollection(collection.id);
+      await two.saveTx({ skipSelect: true });
+      await idle();
+      expect(tags(two), "the paper out of the folder").to.deep.equal([]);
+      expect(tags(one), "the paper still in it").to.deep.equal(["_read"]);
+    });
   });
 });

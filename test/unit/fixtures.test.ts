@@ -79,7 +79,7 @@ interface StateCase {
         ok: true;
         states: Record<string, ReadStateEntry>;
         absent: string[];
-        mirror: Record<string, string | null>;
+        mirror: Record<string, string>;
       };
 }
 

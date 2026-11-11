@@ -216,10 +216,10 @@ describe("nextUp", () => {
 });
 
 describe("mirrorTag", () => {
-  it("tags Reading and Read, and leaves Unread bare", () => {
+  it("tags every state with its own tag", () => {
+    expect(mirrorTag("unread")).to.equal("_unread");
     expect(mirrorTag("reading")).to.equal("_reading");
     expect(mirrorTag("read")).to.equal("_read");
-    expect(mirrorTag("unread")).to.equal(null);
   });
 });
 

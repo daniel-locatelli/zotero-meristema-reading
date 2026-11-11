@@ -28,8 +28,12 @@ export interface PaperRef {
   key: string;
 }
 
-/** Tags mirrored onto papers for Zotero apps without plugins; Unread has none. */
-export const MIRROR_TAGS = { reading: "_reading", read: "_read" } as const;
+/** Tags mirrored onto papers for Zotero apps without plugins. */
+export const MIRROR_TAGS = {
+  unread: "_unread",
+  reading: "_reading",
+  read: "_read",
+} as const;
 
 const RANK: Record<ReadState, number> = { unread: 0, reading: 1, read: 2 };
 const KEY_ID = new RegExp(`^(?:user|group-\\d+):[${ITEM_KEY_CHARS}]{8}$`);
@@ -169,8 +173,8 @@ export function nextUp(
   );
 }
 
-export function mirrorTag(state: ReadState): string | null {
-  return state === "unread" ? null : MIRROR_TAGS[state];
+export function mirrorTag(state: ReadState): string {
+  return MIRROR_TAGS[state];
 }
 
 /** The whole note, with ids sorted so equal states write equal notes. */

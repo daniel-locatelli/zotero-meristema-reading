@@ -12,6 +12,7 @@ import {
   type ReadState,
   type ReadStateDoc,
 } from "../format/readState";
+import { READING_LIST_TAG } from "../format/readingList";
 import { Refusal } from "./alerts";
 import { emitChange } from "./changes";
 import { paperRefOf, taggedNotes } from "./items";
@@ -104,9 +105,24 @@ async function save(next: ReadStateDoc): Promise<void> {
   doc = next;
 }
 
+/** The regular items of every My Library folder that holds a list note. */
+async function listedItemIDs(): Promise<Set<number>> {
+  const ids = new Set<number>();
+  const notes = await taggedNotes(userLibraryID(), READING_LIST_TAG);
+  const folders = new Set(notes.flatMap((note) => note.getCollections()));
+  for (const folderID of folders) {
+    const folder = Zotero.Collections.get(folderID);
+    if (!folder || folder.deleted) continue;
+    const children: Zotero.Item[] = folder.getChildItems(false, false);
+    for (const item of children) if (item.isRegularItem()) ids.add(item.id);
+  }
+  return ids;
+}
+
 /** Rewrites the mirror tags on `items`, keeping only regular items of My Library. */
 async function mirror(items: Zotero.Item[]): Promise<void> {
   if (unreadable) return;
+  const listed = await listedItemIDs();
   const own = items.filter(
     (item) =>
       item.libraryID === userLibraryID() &&
@@ -119,6 +135,7 @@ async function mirror(items: Zotero.Item[]): Promise<void> {
       id: item.id,
       paperId: paperId(paperRefOf(item)),
       tags: item.getTags().map((tag: { tag: string }) => tag.tag),
+      listed: listed.has(item.id),
     })),
   );
   for (const change of changes) {
@@ -127,7 +144,11 @@ async function mirror(items: Zotero.Item[]): Promise<void> {
     for (const tag of change.remove) item.removeTag(tag);
     // One paper that cannot be saved must not keep the rest from their tags.
     try {
-      await item.saveTx({ skipDateModifiedUpdate: true });
+      await item.saveTx({
+        skipDateModifiedUpdate: true,
+        // Meristema skips modifies so marked: a mirror tag is not a reader's edit.
+        notifierData: { meristemaReadingMirror: true },
+      });
     } catch (error) {
       report(error);
     }
@@ -219,6 +240,11 @@ export function itemsChanged(ids: number[]): Promise<void> {
     const items = (await Zotero.Items.getAsync(ids)).filter(Boolean);
     await mirror(items);
   });
+}
+
+/** A folder's papers or its list note changed: who is listed may have too. */
+export function listsChanged(): Promise<void> {
+  return enqueue(() => mirrorAllUnlessSyncing());
 }
 
 /** A sync ended: read the notes it brought, and run the mirror it put off. */
