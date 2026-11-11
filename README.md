@@ -13,7 +13,8 @@ Meristema Reading is a Zotero 9 and 10 plugin built from this repo.
   `_read` tags in My Library for Zotero apps without plugins. A paper gets
   `_unread` only while it sits in a My Library folder that holds a reading
   list; an Unread paper in no list gets no tag. The mirror is one way: a tag
-  changed by hand is put back.
+  changed by hand is put back, so the first run after an update removes any
+  `_unread` tag added by hand to a paper in no list.
 - **Make Reading List** (folder menu): a note tagged `meristema-reading-list`
   holding the folder's papers in the order the item list shows them.
 - **Step** (column picker): a paper's step in the selected folder's list.
@@ -25,7 +26,11 @@ Meristema Reading is a Zotero 9 and 10 plugin built from this repo.
   Unread, Reading and Read, and type a reason under a step.
 - **Open Reading List** (folder menu, or Open as Tab in the section): the same
   list as full-width cards, reasons in full. List tabs open when Zotero quits
-  come back when it starts.
+  come back when it starts, in the first main window.
+- **Clear Reading List** (folder menu): after a warning, empties the steps.
+  The folder, the note and the papers stay.
+- **Settings** (Zotero Settings, Meristema Reading): how papers are labelled in
+  the section and the tab: Author, year; Title; or Author, year, title.
 
 `npm start` runs it in a dev Zotero (copy `.env.example` to `.env` first),
 `npm test` runs the Zotero suite, and `npm run check` runs prettier, eslint,
