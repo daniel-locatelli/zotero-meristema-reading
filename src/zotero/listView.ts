@@ -1,6 +1,6 @@
 import {
   nextState,
-  placeStep,
+  placeStepAt,
   setWhy,
   shiftStep,
   unplaceStep,
@@ -22,6 +22,8 @@ const STATE_LABEL: Record<ReadState, string> = {
 
 /** The key being dragged, shared by every view so a drag can cross rows. */
 let dragged: string | null = null;
+/** The height of the dragged row, which the slot it opens takes. */
+let draggedHeight = 0;
 
 /** A redraw held back while the reader types a reason, with its latest arguments. */
 const deferred = new WeakMap<
@@ -138,6 +140,77 @@ async function showInLibrary(
 function allowDrop(event: DragEvent): void {
   event.preventDefault();
   if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+}
+
+/** Whether `related`, where a drag went on leaving `zone`, lies outside it. */
+function leftZone(zone: Element, related: EventTarget | null): boolean {
+  // A drag event's related target is a node or null; the plugin's scope
+  // may share no `Node` with the window, so no instanceof.
+  return !related || !zone.contains(related as Node);
+}
+
+/** Every trace of a drag in the document: slots, the faded row, a lit zone. */
+function clearDragMarks(doc: Document): void {
+  for (const slot of Array.from(
+    doc.querySelectorAll(".mr-list .mr-drop-slot"),
+  ) as Element[]) {
+    slot.remove();
+  }
+  for (const node of Array.from(
+    doc.querySelectorAll(".mr-list .mr-dragging, .mr-list .mr-drop-target"),
+  ) as Element[]) {
+    node.classList.remove("mr-dragging", "mr-drop-target");
+  }
+}
+
+/** The step rows of `list` a drop lands among: all but the dragged one. */
+function landingRows(list: HTMLElement): HTMLElement[] {
+  return (Array.from(list.children) as HTMLElement[]).filter(
+    (node) =>
+      node.classList.contains("mr-step") && node.dataset.key !== dragged,
+  );
+}
+
+/** Where among the landing rows a pointer at `clientY` drops: past each row whose middle it passed. */
+function landingIndex(list: HTMLElement, clientY: number): number {
+  let index = 0;
+  for (const row of landingRows(list)) {
+    const rect = row.getBoundingClientRect();
+    if (clientY > rect.top + rect.height / 2) index++;
+  }
+  return index;
+}
+
+/**
+ * Opens the slot in `list` at `index` among the landing rows, as tall as the
+ * dragged row, and slides the rows it pushes or pulls into place (FLIP).
+ */
+function openSlot(doc: Document, list: HTMLElement, index: number): void {
+  let slot = list.querySelector(".mr-drop-slot") as HTMLElement | null;
+  if (slot && Number(slot.dataset.index) === index) return;
+  const rows = Array.from(list.querySelectorAll(".mr-step")) as HTMLElement[];
+  const before = new Map(
+    rows.map((row) => [row, row.getBoundingClientRect().top]),
+  );
+  if (!slot) {
+    slot = doc.createElementNS(HTML, "li") as HTMLElement;
+    slot.className = "mr-drop-slot";
+  }
+  slot.dataset.index = String(index);
+  slot.style.height = `${draggedHeight}px`;
+  list.insertBefore(slot, landingRows(list)[index] ?? null);
+  for (const row of rows) {
+    const shift = before.get(row)! - row.getBoundingClientRect().top;
+    if (!shift) continue;
+    row.style.transition = "none";
+    row.style.transform = `translateY(${shift}px)`;
+    // Lay the inverse out, so the next frame slides it back to zero.
+    void row.offsetHeight;
+    doc.defaultView?.requestAnimationFrame(() => {
+      row.style.transition = "";
+      row.style.transform = "";
+    });
+  }
 }
 
 /**
@@ -259,11 +332,24 @@ export function renderList(
       const fromPaper = source === row && row.classList.contains("mr-paper");
       if (!fromHandle && !fromPaper) return;
       dragged = key;
-      event.dataTransfer?.setData("text/plain", key);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+      const rect = row.getBoundingClientRect();
+      draggedHeight = rect.height;
+      const transfer = event.dataTransfer;
+      if (transfer) {
+        transfer.setData("text/plain", key);
+        transfer.effectAllowed = "move";
+        // The whole row follows the pointer, held where it was grabbed.
+        transfer.setDragImage(
+          row,
+          Math.round(event.clientX - rect.left),
+          Math.round(event.clientY - rect.top),
+        );
+      }
+      row.classList.add("mr-dragging");
     });
     row.addEventListener("dragend", () => {
       dragged = null;
+      clearDragMarks(doc);
     });
   }
 
@@ -317,33 +403,39 @@ export function renderList(
         shiftStep(steps, step.key, event.key === "ArrowUp" ? -1 : 1),
       );
     });
-    row.addEventListener("dragover", allowDrop);
-    row.addEventListener("drop", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const moving = dragged;
-      dragged = null;
-      if (moving) void edit((steps) => placeStep(steps, moving, step.key));
-    });
     return row;
   }
 
   const steps = element(doc, "ol", "mr-steps");
   for (const step of list.resolved.steps) steps.append(stepRow(step));
   if (editable) {
-    steps.addEventListener("dragover", allowDrop);
-    steps.addEventListener("drop", (event) => {
-      event.preventDefault();
+    steps.addEventListener("dragover", (event: DragEvent) => {
+      if (!dragged) return;
+      allowDrop(event);
+      openSlot(doc, steps, landingIndex(steps, event.clientY));
+    });
+    steps.addEventListener("dragleave", (event: DragEvent) => {
+      if (!leftZone(steps, event.relatedTarget)) return;
+      steps.querySelector(".mr-drop-slot")?.remove();
+    });
+    steps.addEventListener("drop", (event: DragEvent) => {
       const moving = dragged;
+      if (!moving) return;
+      event.preventDefault();
+      const slot = steps.querySelector(".mr-drop-slot") as HTMLElement | null;
+      const index = slot
+        ? Number(slot.dataset.index)
+        : landingIndex(steps, event.clientY);
       dragged = null;
-      if (moving) void edit((current) => placeStep(current, moving, null));
+      clearDragMarks(doc);
+      void edit((current) => placeStepAt(current, moving, index));
     });
   }
   container.append(steps);
 
-  container.append(
-    element(doc, "div", "mr-unordered-title", "Not in the steps"),
-  );
+  // The heading and its papers take a drop as one zone.
+  const zone = element(doc, "section", "mr-unordered-zone");
+  zone.append(element(doc, "div", "mr-unordered-title", "Not in the steps"));
   const unordered = element(doc, "ul", "mr-unordered");
   for (const key of list.resolved.unordered) {
     const row = element(doc, "li", "mr-paper");
@@ -352,14 +444,26 @@ export function renderList(
     unordered.append(row);
   }
   if (editable) {
-    unordered.addEventListener("dragover", allowDrop);
-    unordered.addEventListener("drop", (event) => {
-      event.preventDefault();
+    zone.addEventListener("dragover", (event: DragEvent) => {
+      if (!dragged) return;
+      allowDrop(event);
+      zone.classList.add("mr-drop-target");
+    });
+    zone.addEventListener("dragleave", (event: DragEvent) => {
+      if (leftZone(zone, event.relatedTarget)) {
+        zone.classList.remove("mr-drop-target");
+      }
+    });
+    zone.addEventListener("drop", (event: DragEvent) => {
       const moving = dragged;
+      if (!moving) return;
+      event.preventDefault();
       dragged = null;
-      if (moving) void edit((current) => unplaceStep(current, moving));
+      clearDragMarks(doc);
+      void edit((current) => unplaceStep(current, moving));
     });
   }
-  container.append(unordered);
+  zone.append(unordered);
+  container.append(zone);
   restoreFocus(container, keyToFocus);
 }

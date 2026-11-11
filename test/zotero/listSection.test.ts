@@ -11,10 +11,12 @@ import {
   altArrow,
   delay,
   drag,
+  dragSession,
   eraseStateNotes,
   idle,
   makeListNote,
   makePaper,
+  middleY,
   plugin,
   rowKeys,
   stateNotes,
@@ -301,6 +303,147 @@ describe("The Reading list section", function () {
       stepsInNote().map((step) => step.key),
       "dragging text out of a reason moves no step",
     ).to.deep.equal([c.key, b.key]);
+  });
+
+  it("drags the whole row and opens a slot where the step will land", async function () {
+    const source = row(c.key);
+    const handle = source.querySelector(".mr-handle")!;
+    const list = view()!.querySelector(".mr-steps")!;
+    const { fire, dataTransfer } = dragSession(win);
+    const images: string[] = [];
+    dataTransfer.setDragImage = (image: Element, x: number, y: number) => {
+      images.push(
+        `${(image as HTMLElement).dataset.key ?? image.className}@${x},${y}`,
+      );
+    };
+    const handleRect = handle.getBoundingClientRect();
+    const sourceRect = source.getBoundingClientRect();
+    const at = {
+      x: Math.round(handleRect.left + 2),
+      y: Math.round(handleRect.top + 2),
+    };
+    fire(handle, "dragstart", at);
+    expect(
+      images,
+      "the drag image is the whole row, held where grabbed",
+    ).to.deep.equal([
+      `${c.key}@${Math.round(at.x - sourceRect.left)},${Math.round(at.y - sourceRect.top)}`,
+    ]);
+    expect(
+      source.classList.contains("mr-dragging"),
+      "the source fades",
+    ).to.equal(true);
+    // Below the middle of the last step: the slot opens after it.
+    const below = middleY(row(b.key), 4);
+    const allowed = !fire(row(b.key), "dragover", { y: below });
+    const slot = list.querySelector(".mr-drop-slot") as HTMLElement | null;
+    // The list as drawn now: a drop redraws it.
+    const order = () =>
+      Array.from(view()!.querySelector(".mr-steps")!.children).map((node) =>
+        node.classList.contains("mr-drop-slot")
+          ? "slot"
+          : ((node as HTMLElement).dataset.key ?? "?"),
+      );
+    expect(
+      { allowed, order: order() },
+      `the slot after the last step; dragover at ${below}`,
+    ).to.deep.equal({ allowed: true, order: [c.key, b.key, "slot"] });
+    expect(
+      Math.abs(slot!.getBoundingClientRect().height - sourceRect.height),
+      `the slot is the dragged row's height: ${slot!.getBoundingClientRect().height} vs ${sourceRect.height}`,
+    ).to.be.at.most(1);
+    fire(slot!, "drop", { y: below });
+    fire(handle, "dragend");
+    expect(
+      list.querySelector(".mr-drop-slot"),
+      "the drop removes the slot",
+    ).to.equal(null);
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([b.key, c.key]);
+    await untilSteps([b.key, c.key]);
+
+    // And back above the first step.
+    const back = dragSession(win);
+    const again = row(c.key).querySelector(".mr-handle")!;
+    back.fire(again, "dragstart");
+    const above = Math.round(row(b.key).getBoundingClientRect().top + 2);
+    back.fire(row(b.key), "dragover", { y: above });
+    expect(
+      order(),
+      `the slot before the first step; dragover at ${above}`,
+    ).to.deep.equal(["slot", b.key, c.key]);
+    back.fire(row(b.key), "drop", { y: above });
+    back.fire(again, "dragend");
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([c.key, b.key]);
+    await untilSteps([c.key, b.key]);
+  });
+
+  it("removes the slot when the drag leaves the steps or ends without a drop", async function () {
+    const handle = row(c.key).querySelector(".mr-handle")!;
+    const list = view()!.querySelector(".mr-steps")!;
+    const heading = view()!.querySelector(".mr-unordered-title")!;
+    const { fire } = dragSession(win);
+    fire(handle, "dragstart");
+    fire(row(b.key), "dragover", { y: middleY(row(b.key), 4) });
+    expect(list.querySelector(".mr-drop-slot"), "a slot while over the steps")
+      .to.exist;
+    fire(list, "dragleave", { relatedTarget: heading });
+    expect(
+      list.querySelector(".mr-drop-slot"),
+      "no slot once the drag leaves the steps",
+    ).to.equal(null);
+    fire(row(b.key), "dragover", { y: middleY(row(b.key), 4) });
+    fire(handle, "dragend");
+    const left = {
+      slots: view()!.querySelectorAll(".mr-drop-slot").length,
+      dragging: view()!.querySelectorAll(".mr-dragging").length,
+      targets: view()!.querySelectorAll(".mr-drop-target").length,
+    };
+    expect(left, "nothing of the drag is left after dragend").to.deep.equal({
+      slots: 0,
+      dragging: 0,
+      targets: 0,
+    });
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([c.key, b.key]);
+  });
+
+  it("takes a step out when it is dropped on the Not in the steps heading", async function () {
+    const handle = row(b.key).querySelector(".mr-handle")!;
+    const heading = view()!.querySelector(".mr-unordered-title")!;
+    const zone = heading.closest(".mr-unordered-zone");
+    expect(zone, "the heading sits in the drop zone").to.exist;
+    const { fire } = dragSession(win);
+    fire(handle, "dragstart");
+    const allowed = !fire(heading, "dragover");
+    expect(
+      { allowed, highlighted: zone!.classList.contains("mr-drop-target") },
+      "the heading takes the drop, and the zone lights up",
+    ).to.deep.equal({ allowed: true, highlighted: true });
+    fire(heading, "drop");
+    fire(handle, "dragend");
+    expect(
+      zone!.classList.contains("mr-drop-target"),
+      "the highlight goes with the drop",
+    ).to.equal(false);
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([c.key]);
+    await untilSteps([c.key]);
+
+    // An unordered paper's row drags back in below the step.
+    const back = dragSession(win);
+    back.fire(row(b.key), "dragstart");
+    const below = middleY(row(c.key), 4);
+    back.fire(row(c.key), "dragover", { y: below });
+    back.fire(row(c.key), "drop", { y: below });
+    back.fire(row(b.key), "dragend");
+    await idle();
+    expect(stepsInNote()).to.deep.equal([
+      { key: c.key, why: "" },
+      { key: b.key, why: "" },
+    ]);
+    await untilSteps([c.key, b.key]);
   });
 
   it("saves an edited reason", async function () {

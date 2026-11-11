@@ -16,6 +16,29 @@
   gap: 4px;
   min-height: 20px;
 }
+.mr-unordered-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 5px;
+}
+/* A step held over the zone: it takes the drop. */
+.mr-unordered-zone.mr-drop-target {
+  outline: 1px dashed var(--color-accent);
+  outline-offset: 2px;
+}
+.mr-step {
+  transition: transform 120ms;
+}
+.mr-dragging {
+  opacity: 0.4;
+}
+/* Where a dragged step will land; its height is the dragged row's. */
+.mr-drop-slot {
+  box-sizing: border-box;
+  border-radius: 5px;
+  border: 1px dashed var(--color-accent);
+}
 .mr-step,
 .mr-paper {
   display: grid;

@@ -243,6 +243,37 @@ export function drag(win: any, source: Element, target: Element): void {
   fire(source, "dragend");
 }
 
+/**
+ * A drag driven one event at a time, each at an optional pointer position in
+ * whole pixels (synthetic mouse events truncate fractions).
+ */
+export function dragSession(win: any) {
+  const dataTransfer = new win.DataTransfer();
+  /** Fires one drag event; false when a listener cancelled it (a drop allowed). */
+  const fire = (
+    node: Element,
+    type: string,
+    at: { x?: number; y?: number; relatedTarget?: Element | null } = {},
+  ): boolean =>
+    node.dispatchEvent(
+      new win.DragEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        dataTransfer,
+        clientX: Math.round(at.x ?? 0),
+        clientY: Math.round(at.y ?? 0),
+        relatedTarget: at.relatedTarget ?? null,
+      }),
+    );
+  return { fire, dataTransfer };
+}
+
+/** The whole-pixel vertical middle of `node` in the viewport, plus `offset`. */
+export function middleY(node: Element, offset = 0): number {
+  const rect = node.getBoundingClientRect();
+  return Math.round(rect.top + rect.height / 2 + offset);
+}
+
 export function altArrow(
   win: any,
   target: Element,

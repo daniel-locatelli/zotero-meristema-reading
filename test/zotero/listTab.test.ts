@@ -11,6 +11,7 @@ import {
   collectionMenuEntry,
   command,
   delay,
+  dragSession,
   idle,
   makeListNote,
   makePaper,
@@ -139,6 +140,39 @@ describe("The list tab", function () {
       10_000,
     );
     expect(redrawn, "the tab redraws").to.equal(true);
+  });
+
+  it("drops a dragged card where its slot opens", async function () {
+    const card = (key: string) =>
+      view()!.querySelector(`[data-key="${key}"]`) as HTMLElement;
+    const list = view()!.querySelector(".mr-steps")!;
+    const handle = card(x.key).querySelector(".mr-handle")!;
+    const { fire } = dragSession(win);
+    fire(handle, "dragstart");
+    const above = Math.round(card(y.key).getBoundingClientRect().top + 2);
+    fire(card(y.key), "dragover", { y: above });
+    const order = Array.from(list.children).map((node) =>
+      node.classList.contains("mr-drop-slot")
+        ? "slot"
+        : ((node as HTMLElement).dataset.key ?? "?"),
+    );
+    expect(order, `the slot opens above y; dragover at ${above}`).to.deep.equal(
+      ["slot", y.key, x.key],
+    );
+    fire(card(y.key), "drop", { y: above });
+    fire(handle, "dragend");
+    await idle();
+    const parsed = parseReadingList(note.getNote());
+    expect(
+      (parsed as { ok: true; value: ReadingListDoc }).value.steps.map(
+        (step) => step.key,
+      ),
+    ).to.deep.equal([x.key, y.key]);
+    const redrawn = await waitFor(
+      () => rowKeys(view(), ".mr-step").join() === [x.key, y.key].join(),
+      10_000,
+    );
+    expect(redrawn, "the tab redraws in the dropped order").to.equal(true);
   });
 
   it("shows a clicked paper in its folder in the library tab", async function () {

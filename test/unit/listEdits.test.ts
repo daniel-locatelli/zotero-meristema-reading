@@ -4,6 +4,7 @@ import {
   liveSteps,
   nextState,
   placeStep,
+  placeStepAt,
   sameSteps,
   setWhy,
   shiftStep,
@@ -50,6 +51,35 @@ describe("placeStep", () => {
     const steps = [A, B];
     expect(placeStep(steps, A.key, A.key)).to.equal(steps);
     expect(placeStep(steps, A.key, "ZZZZ9999")).to.equal(steps);
+  });
+});
+
+describe("placeStepAt", () => {
+  it("moves a step up to an index among the other steps, keeping its reason", () => {
+    expect(placeStepAt([A, B, C], C.key, 0)).to.deep.equal([C, A, B]);
+  });
+
+  it("moves a step down to an index among the other steps", () => {
+    expect(placeStepAt([A, B, C], A.key, 1)).to.deep.equal([B, A, C]);
+    expect(placeStepAt([A, B, C], A.key, 2)).to.deep.equal([B, C, A]);
+  });
+
+  it("adds an unordered paper at the index with no reason", () => {
+    expect(placeStepAt([A, C], "DDDD4444", 1)).to.deep.equal([
+      A,
+      { key: "DDDD4444", why: "" },
+      C,
+    ]);
+  });
+
+  it("places a step last for an index past the end, first for one below zero", () => {
+    expect(placeStepAt([A, B, C], A.key, 9)).to.deep.equal([B, C, A]);
+    expect(placeStepAt([A, C], "DDDD4444", 9)).to.deep.equal([
+      A,
+      C,
+      { key: "DDDD4444", why: "" },
+    ]);
+    expect(placeStepAt([A, B, C], C.key, -1)).to.deep.equal([C, A, B]);
   });
 });
 

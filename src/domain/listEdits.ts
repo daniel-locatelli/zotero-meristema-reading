@@ -28,6 +28,22 @@ export function placeStep(
   return [...rest.slice(0, at), moving, ...rest.slice(at)];
 }
 
+/**
+ * `steps` with `key` at `index` among the other steps, the place a dropped
+ * step's slot shows: clamped to the first and the last place. A step keeps
+ * its reason when it moves; a paper new to the steps gets none.
+ */
+export function placeStepAt(
+  steps: readonly ReadingListStep[],
+  key: string,
+  index: number,
+): ReadingListStep[] {
+  const moving = steps.find((step) => step.key === key) ?? { key, why: "" };
+  const rest = steps.filter((step) => step.key !== key);
+  const at = Math.max(0, Math.min(index, rest.length));
+  return [...rest.slice(0, at), moving, ...rest.slice(at)];
+}
+
 /** `steps` without `key`: its paper goes back among the unordered. */
 export function unplaceStep(
   steps: readonly ReadingListStep[],
