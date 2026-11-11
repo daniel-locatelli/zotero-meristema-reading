@@ -50,9 +50,6 @@
 .mr-next {
   border-color: var(--color-accent);
 }
-.mr-current {
-  background: var(--fill-quinary);
-}
 .mr-state {
   font-size: 0.9em;
 }
@@ -61,6 +58,16 @@
 }
 .mr-state[data-state="read"] {
   color: var(--fill-secondary);
+}
+/* Zotero's item-list selection; after the state colours, so it wins them. */
+.mr-current {
+  background: var(--color-accent);
+  color: var(--accent-white, #fff);
+}
+.mr-current .mr-number,
+.mr-current .mr-handle,
+.mr-current .mr-state {
+  color: inherit;
 }
 .mr-why {
   resize: vertical;

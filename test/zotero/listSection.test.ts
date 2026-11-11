@@ -9,6 +9,7 @@ import {
 import { parseReadState, type ReadStateDoc } from "../../src/format/readState";
 import {
   altArrow,
+  delay,
   drag,
   eraseStateNotes,
   idle,
@@ -129,6 +130,116 @@ describe("The Reading list section", function () {
     expect(
       (row(a.key).querySelector(".mr-why") as HTMLTextAreaElement).value,
     ).to.equal("first");
+  });
+
+  it("marks the selected paper in Zotero's selection blue, in both themes", async function () {
+    const themePref = "browser.theme.toolbar-theme";
+    const hadTheme = Services.prefs.prefHasUserValue(themePref);
+    const oldTheme = Services.prefs.getIntPref(themePref, 2);
+    const dark = win.matchMedia("(prefers-color-scheme: dark)");
+    const seen: Record<string, unknown> = {};
+    try {
+      // 1 is Zotero's light appearance, 0 its dark one.
+      for (const [name, value] of [
+        ["light", 1],
+        ["dark", 0],
+      ] as const) {
+        Services.prefs.setIntPref(themePref, value);
+        const switched = await waitFor(
+          () => dark.matches === (name === "dark"),
+          10_000,
+        );
+        expect(switched, `the window turns ${name}`).to.equal(true);
+        const current = view()!.querySelector(".mr-current") as HTMLElement;
+        // Zotero's own variables, resolved in the same place as the row.
+        const probe = win.document.createElementNS(
+          "http://www.w3.org/1999/xhtml",
+          "div",
+        ) as HTMLElement;
+        probe.style.background = "var(--color-accent)";
+        probe.style.color = "var(--accent-white, #fff)";
+        current.parentElement!.append(probe);
+        const style = (elem: Element) => win.getComputedStyle(elem);
+        const parts = [".mr-number", ".mr-handle", ".mr-state", ".mr-title"];
+        seen[name] = {
+          background: style(current).backgroundColor,
+          color: style(current).color,
+          parts: parts.map((part) => style(current.querySelector(part)!).color),
+          accent: style(probe).backgroundColor,
+          white: style(probe).color,
+        };
+        probe.remove();
+      }
+    } finally {
+      if (hadTheme) Services.prefs.setIntPref(themePref, oldTheme);
+      else Services.prefs.clearUserPref(themePref);
+    }
+    for (const name of ["light", "dark"]) {
+      const theme = seen[name] as any;
+      expect(
+        JSON.stringify({
+          background: theme.background,
+          color: theme.color,
+          parts: theme.parts,
+        }),
+        `the current row in the ${name} theme: ${JSON.stringify(seen)}`,
+      ).to.equal(
+        JSON.stringify({
+          background: theme.accent,
+          color: theme.white,
+          parts: [theme.white, theme.white, theme.white, theme.white],
+        }),
+      );
+    }
+  });
+
+  it("keeps the section where it was in the pane when another paper of the folder is selected", async function () {
+    const paneParent = () =>
+      win.document.querySelector(
+        "#zotero-item-pane item-details #zotero-view-item",
+      ) as HTMLElement;
+    const offset = () =>
+      Math.round(
+        view()!.closest("item-pane-custom-section")!.getBoundingClientRect()
+          .top - paneParent().getBoundingClientRect().top,
+      );
+    const where = () =>
+      JSON.stringify({
+        scrollTop: Math.round(paneParent().scrollTop),
+        offset: offset(),
+        scrollHeight: paneParent().scrollHeight,
+        clientHeight: paneParent().clientHeight,
+      });
+    await win.ZoteroPane.selectItem(a.id);
+    expect(
+      await waitFor(
+        () => rowKeys(view(), ".mr-current").join() === a.key,
+        10_000,
+      ),
+      `the section draws for ${a.key}: ${sectionEvidence()}`,
+    ).to.equal(true);
+    await delay(300);
+    // As far as the pane scrolls towards the section's header at its top.
+    paneParent().scrollTop += offset();
+    await delay(300);
+    const before = where();
+    expect(paneParent().scrollTop, `the pane scrolled: ${before}`).to.be.above(
+      0,
+    );
+    await win.ZoteroPane.selectItem(b.id);
+    expect(
+      await waitFor(
+        () => rowKeys(view(), ".mr-current").join() === b.key,
+        10_000,
+      ),
+      `the section draws for ${b.key}: ${sectionEvidence()}`,
+    ).to.equal(true);
+    await delay(800);
+    const after = where();
+    expect(
+      Math.abs(JSON.parse(after).offset - JSON.parse(before).offset),
+      `the section stays in place; before ${before}, after ${after}`,
+    ).to.be.at.most(2);
   });
 
   it("moves a step with Alt+Down and rewrites the note", async function () {

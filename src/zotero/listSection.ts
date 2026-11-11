@@ -37,6 +37,62 @@ function listFolderOf(
   return listFor(collectionID) ? collectionID : null;
 }
 
+/**
+ * Where a section's header stood in its item pane, for the paper it is about
+ * to show. Zotero scrolls an item pane to its top for every new item unless a
+ * section is pinned, so a reader working down a list from this section would
+ * lose it on every paper.
+ */
+const heldOffsets = new WeakMap<HTMLElement, { key: string; offset: number }>();
+
+function paneOf(body: HTMLElement): {
+  pane: HTMLElement;
+  section: HTMLElement;
+  pinned: boolean;
+} | null {
+  const section = body.closest(
+    "item-pane-custom-section",
+  ) as HTMLElement | null;
+  const pane = section?.parentElement as HTMLElement | null | undefined;
+  if (!section || !pane?.classList.contains("zotero-view-item")) return null;
+  const details = pane.closest("item-details");
+  return {
+    pane,
+    section,
+    pinned: Boolean(details?.getAttribute("pinnedPane")),
+  };
+}
+
+function offsetIn(pane: HTMLElement, section: HTMLElement): number {
+  return section.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+}
+
+/** Before the item changes: remember the header's place, if it is in view. */
+function holdPlace(body: HTMLElement, item: Zotero.Item): void {
+  heldOffsets.delete(body);
+  const found = paneOf(body);
+  // With a section pinned, Zotero scrolls to that one itself.
+  if (!found || found.pinned || found.section.hidden) return;
+  const offset = offsetIn(found.pane, found.section);
+  if (offset < 0 || offset >= found.pane.clientHeight) return;
+  heldOffsets.set(body, { key: item.key, offset });
+}
+
+/**
+ * After the render: Zotero scrolls the pane to its top once every section has
+ * drawn, in the same task, so the place is put back in a microtask behind it.
+ */
+function restorePlace(body: HTMLElement, item: Zotero.Item): void {
+  const held = heldOffsets.get(body);
+  heldOffsets.delete(body);
+  if (!held || held.key !== item.key) return;
+  void Promise.resolve().then(() => {
+    const found = paneOf(body);
+    if (!found || found.pinned) return;
+    found.pane.scrollTop += offsetIn(found.pane, found.section) - held.offset;
+  });
+}
+
 function shows(body: HTMLElement, state: SectionState): boolean {
   return state.tabType === "library" && listFolderOf(body, state.item) !== null;
 }
@@ -98,7 +154,10 @@ export function registerListSection(
         state.item = item;
         state.tabType = tabType;
       }
-      setEnabled(tabType === "library" && listFolderOf(body, item) !== null);
+      const enabled =
+        tabType === "library" && listFolderOf(body, item) !== null;
+      if (enabled) holdPlace(body, item);
+      setEnabled(enabled);
     },
     onRender: ({
       body,
@@ -116,6 +175,7 @@ export function registerListSection(
         return;
       }
       const collection = Zotero.Collections.get(collectionID);
+      restorePlace(body, item);
       renderList(body, collectionID, {
         mode: "sidebar",
         currentKey: item.key,
