@@ -158,9 +158,10 @@ function collectionMenus(): MenuData[] {
       icon: ICON,
       onShowing: (_event: Event, context: any) => {
         const id = contextCollectionID(context);
-        const available = id !== null && clearableSteps(id) !== null;
-        context.setVisible(available);
-        context.setEnabled(available);
+        const count = id === null ? null : clearableSteps(id);
+        // Shown for every list it could clear; with no steps, nothing to clear.
+        context.setVisible(count !== null);
+        context.setEnabled(count !== null && count > 0);
       },
       onCommand: (_event: Event, context: any) => {
         const id = contextCollectionID(context);

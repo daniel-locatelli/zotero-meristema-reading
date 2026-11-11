@@ -171,9 +171,22 @@ describe("Clearing a reading list", function () {
     expect(await stateHtml(), "read states kept").to.equal(states);
   });
 
-  it("does nothing, and asks nothing, for a list with no steps", async function () {
-    const asked = await clearWith(0);
-    expect(asked, "no warning").to.have.length(0);
+  it("is shown but disabled for a list with no steps", async function () {
+    const { popup, entry } = await collectionMenuEntry(
+      win,
+      collection.id,
+      CLEAR,
+    );
+    const drawn = {
+      offered: Boolean(entry) && !entry.hidden,
+      disabled: Boolean(entry?.disabled),
+      attribute: entry?.getAttribute("disabled") ?? null,
+    };
+    popup.hidePopup();
+    expect(
+      { offered: drawn.offered, disabled: drawn.disabled },
+      `the entry with no steps: ${JSON.stringify(drawn)}`,
+    ).to.deep.equal({ offered: true, disabled: true });
     expect(stepKeys()).to.deep.equal([]);
   });
 });
