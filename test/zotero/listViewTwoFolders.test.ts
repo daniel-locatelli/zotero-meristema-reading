@@ -7,6 +7,12 @@ import {
   type ReadingListStep,
 } from "../../src/format/readingList";
 import {
+  emptyReadState,
+  READ_STATE_TAG,
+  setState,
+  writeReadState,
+} from "../../src/format/readState";
+import {
   altArrow,
   drag,
   delay,
@@ -14,7 +20,7 @@ import {
   idle,
   makeListNote,
   makePaper,
-  markThroughMenu,
+  eraseStateNotes,
   plugin,
   rowKeys,
   waitFor,
@@ -81,6 +87,7 @@ describe("Two folders' reading lists", function () {
       await Zotero.Items.erase([note.id, ...papers.map((paper) => paper.id)]);
       await collection.eraseTx();
     }
+    await eraseStateNotes();
     await idle();
   });
 
@@ -237,8 +244,22 @@ describe("Two folders' reading lists", function () {
   });
 
   it("colours the read states as Meristema's graph does, in both themes", async function () {
-    await markThroughMenu(win, [second.papers[0].id], "read");
-    await markThroughMenu(win, [second.papers[1].id], "reading");
+    // The read states written as a sync would bring them, not through the
+    // item menu, whose selection can lag between two marks.
+    await eraseStateNotes();
+    let doc = emptyReadState();
+    for (const [paper, state] of [
+      [second.papers[0], "read"],
+      [second.papers[1], "reading"],
+    ] as const) {
+      doc = setState(doc, `user:${paper.key}`, state, "2026-03-01T00:00:00Z");
+    }
+    const stateNote = new Zotero.Item("note");
+    stateNote.libraryID = Zotero.Libraries.userLibraryID;
+    stateNote.setNote(writeReadState(doc));
+    stateNote.addTag(READ_STATE_TAG);
+    await stateNote.saveTx({ skipSelect: true });
+    await idle();
     const draw = (collectionID: number, options: any) => {
       const node = win.document.createElementNS(HTML, "div") as HTMLElement;
       win.document.documentElement.append(node);
