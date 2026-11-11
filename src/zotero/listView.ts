@@ -30,8 +30,16 @@ const deferred = new WeakMap<
   HTMLElement,
   { collectionID: number; options: ListViewOptions }
 >();
+/** Where focus goes back to after a redraw: a row, its state toggle or its reason. */
+interface FocusSpot {
+  key: string;
+  part: "row" | "state" | "why";
+  /** The caret in a reason, put back where it was. */
+  caret?: { start: number; end: number };
+}
+
 /** The step a keyboard move asked to keep focused through the next redraw. */
-const refocus = new WeakMap<HTMLElement, string>();
+const refocus = new WeakMap<HTMLElement, FocusSpot>();
 
 export interface ListViewOptions {
   mode: "sidebar" | "tab";
@@ -71,8 +79,18 @@ function holdsTyping(container: HTMLElement, doc: Document): boolean {
   const fields = Array.from(
     container.querySelectorAll(".mr-why"),
   ) as HTMLTextAreaElement[];
+  const moving = refocus.get(container);
   for (const why of fields) {
     if (why.readOnly) continue;
+    // A reason saved and moved with its step: the redraw carries it over.
+    const key = (why.closest(".mr-step") as HTMLElement | null)?.dataset.key;
+    if (
+      moving?.part === "why" &&
+      moving.key === key &&
+      why.value === why.dataset.saved
+    ) {
+      continue;
+    }
     if (doc.activeElement === why || why.value !== why.dataset.saved) {
       return true;
     }
@@ -89,10 +107,7 @@ function redrawDeferred(container: HTMLElement): void {
 }
 
 /** The key of the row, or of the row whose state toggle, has the focus. */
-function focusedKey(
-  container: HTMLElement,
-  doc: Document,
-): { key: string; part: "row" | "state" } | null {
+function focusedKey(container: HTMLElement, doc: Document): FocusSpot | null {
   const active = doc.activeElement as HTMLElement | null;
   if (!active || !container.contains(active)) return null;
   if (active.matches(".mr-step, .mr-paper") && active.dataset.key) {
@@ -105,20 +120,25 @@ function focusedKey(
   return null;
 }
 
-function restoreFocus(
-  container: HTMLElement,
-  wanted: { key: string; part: "row" | "state" } | null,
-): void {
+function restoreFocus(container: HTMLElement, wanted: FocusSpot | null): void {
   if (!wanted) return;
   const rows = Array.from(
     container.querySelectorAll(".mr-step, .mr-paper"),
   ) as HTMLElement[];
   const row = rows.find((node) => node.dataset.key === wanted.key);
   const target =
-    wanted.part === "state"
-      ? (row?.querySelector(".mr-state") as HTMLElement | null | undefined)
-      : row;
+    wanted.part === "row"
+      ? row
+      : (row?.querySelector(
+          wanted.part === "state" ? ".mr-state" : ".mr-why",
+        ) as HTMLElement | null | undefined);
   target?.focus();
+  if (wanted.caret && target?.matches(".mr-why")) {
+    (target as HTMLTextAreaElement).setSelectionRange(
+      wanted.caret.start,
+      wanted.caret.end,
+    );
+  }
 }
 
 /** Shows a paper in its folder in the library tab, from the sidebar or a list tab. */
@@ -135,6 +155,11 @@ async function showInLibrary(
     await pane.collectionsView.selectCollection(collectionID);
   }
   await pane.selectItem(itemID);
+}
+
+/** Alt+Up or Alt+Down, the keys that move a step. */
+function moveKey(event: KeyboardEvent): boolean {
+  return event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown");
 }
 
 function allowDrop(event: DragEvent): void {
@@ -237,9 +262,7 @@ export function renderList(
   deferred.delete(container);
   // A drag whose source row is redrawn away gets no dragend.
   dragged = null;
-  const keyToFocus = refocus.has(container)
-    ? { key: refocus.get(container)!, part: "row" as const }
-    : focusedKey(container, doc);
+  const keyToFocus = refocus.get(container) ?? focusedKey(container, doc);
   refocus.delete(container);
   container.replaceChildren();
   container.classList.add("mr-list", `mr-${options.mode}`);
@@ -393,12 +416,30 @@ export function renderList(
         why.value = why.dataset.saved ?? "";
         why.blur();
       }
+      if (!moveKey(event)) return;
+      // Saves the reason as its change would, then moves the step with it.
+      event.preventDefault();
+      const text = why.value;
+      why.dataset.saved = text;
+      const caret = {
+        start: why.selectionStart ?? text.length,
+        end: why.selectionEnd ?? text.length,
+      };
+      const by = event.key === "ArrowUp" ? -1 : 1;
+      void edit((steps) =>
+        shiftStep(setWhy(steps, step.key, text), step.key, by),
+      ).finally(() => {
+        // Typed on while it saved: the redraw waits for the blur, as ever.
+        if (why.value !== text) return;
+        refocus.set(container, { key: step.key, part: "why", caret });
+        const held = deferred.get(container) ?? { collectionID, options };
+        renderList(container, held.collectionID, held.options);
+      });
     });
     row.addEventListener("keydown", (event: KeyboardEvent) => {
-      if (event.target === why || !event.altKey) return;
-      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      if (event.target === why || !moveKey(event)) return;
       event.preventDefault();
-      refocus.set(container, step.key);
+      refocus.set(container, { key: step.key, part: "row" });
       void edit((steps) =>
         shiftStep(steps, step.key, event.key === "ArrowUp" ? -1 : 1),
       );

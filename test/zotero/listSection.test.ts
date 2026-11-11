@@ -18,6 +18,8 @@ import {
   makePaper,
   middleY,
   plugin,
+  realAltArrow,
+  realClick,
   rowKeys,
   stateNotes,
   waitFor,
@@ -270,6 +272,87 @@ describe("The Reading list section", function () {
     await untilSteps([b.key, a.key]);
     expect(focusedKey(), "focus after the third press").to.equal(a.key);
     expect(stepsInNote().map((step) => step.key)).to.deep.equal([b.key, a.key]);
+  });
+
+  it("moves a step with real Alt+Up and Alt+Down from its row and from its reason", async function () {
+    const describe = (node: Element | null) =>
+      node
+        ? `${node.localName}.${node.className}[${(node.closest("[data-key]") as HTMLElement | null)?.dataset.key}]`
+        : "null";
+    /** A real click on the middle of `node`, after scrolling it into view. */
+    async function clickOn(node: Element): Promise<string> {
+      node.scrollIntoView({ block: "center" });
+      await delay(200);
+      const rect = node.getBoundingClientRect();
+      const x = Math.round(rect.left + rect.width / 2);
+      const y = Math.round(rect.top + rect.height / 2);
+      const hit = win.document.elementFromPoint(x, y);
+      realClick(win, x, y);
+      await delay(200);
+      return `clicked ${describe(hit)} at ${x},${y}; focus ${describe(win.document.activeElement)}`;
+    }
+    await untilSteps([b.key, a.key]);
+    (win.document.activeElement as HTMLElement | null)?.blur();
+
+    // From the row: a click on its number focuses it.
+    const clicked = await clickOn(row(a.key).querySelector(".mr-number")!);
+    expect(
+      win.document.activeElement === row(a.key),
+      `the click focuses the row: ${clicked}`,
+    ).to.equal(true);
+    realAltArrow(win, "ArrowUp");
+    await idle();
+    expect(
+      stepsInNote().map((step) => step.key),
+      `Alt+Up from the row moves it; ${clicked}`,
+    ).to.deep.equal([a.key, b.key]);
+    await untilSteps([a.key, b.key]);
+    expect(
+      describe(win.document.activeElement),
+      "the moved row keeps the focus",
+    ).to.equal(describe(row(a.key)));
+
+    // From the reason: typed, saved, moved, the caret back where it was.
+    const why = row(a.key).querySelector(".mr-why") as HTMLTextAreaElement;
+    const inWhy = await clickOn(why);
+    expect(
+      win.document.activeElement === why,
+      `the click puts the caret in the reason: ${inWhy}`,
+    ).to.equal(true);
+    why.value = "first, and more";
+    why.dispatchEvent(new win.Event("input", { bubbles: true }));
+    why.setSelectionRange(5, 5);
+    realAltArrow(win, "ArrowDown");
+    await idle();
+    expect(stepsInNote(), `Alt+Down from the reason; ${inWhy}`).to.deep.equal([
+      { key: b.key, why: "" },
+      { key: a.key, why: "first, and more" },
+    ]);
+    await untilSteps([b.key, a.key]);
+    const caret = await waitFor(() => {
+      const active = win.document.activeElement as HTMLTextAreaElement;
+      return active?.matches?.(".mr-why") && active.isConnected ? active : null;
+    }, 5_000);
+    const after = caret
+      ? {
+          in: describe(caret),
+          value: caret.value,
+          caret: [caret.selectionStart, caret.selectionEnd],
+        }
+      : { in: describe(win.document.activeElement) };
+    expect(after, "the caret is back in the moved step's reason").to.deep.equal(
+      {
+        in: describe(row(a.key).querySelector(".mr-why")),
+        value: "first, and more",
+        caret: [5, 5],
+      },
+    );
+    expect(
+      (row(a.key).querySelector(".mr-handle") as HTMLElement).title,
+      "the handle's tooltip",
+    ).to.equal("Drag to reorder, or Alt+Up and Alt+Down");
+    (win.document.activeElement as HTMLElement | null)?.blur();
+    await idle();
   });
 
   it("drops an unordered paper into the steps before the step it lands on", async function () {

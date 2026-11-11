@@ -284,6 +284,39 @@ export function altArrow(
   );
 }
 
+/**
+ * A real click at whole-pixel window coordinates, hit-tested like the
+ * reader's pointer: it lands on whatever covers that point.
+ */
+export function realClick(win: any, x: number, y: number): void {
+  const utils = win.windowUtils;
+  utils.sendMouseEvent("mousedown", Math.round(x), Math.round(y), 0, 1, 0);
+  utils.sendMouseEvent("mouseup", Math.round(x), Math.round(y), 0, 1, 0);
+}
+
+/**
+ * Alt+ArrowUp or Alt+ArrowDown pressed for real: through the widget layer to
+ * the focused element, past every key handler the window has.
+ */
+export function realAltArrow(win: any, key: "ArrowUp" | "ArrowDown"): void {
+  const tip = (Components.classes as any)[
+    "@mozilla.org/text-input-processor;1"
+  ].createInstance(Components.interfaces.nsITextInputProcessor);
+  if (!tip.beginInputTransactionForTests(win)) {
+    throw new Error("no input transaction for the window");
+  }
+  const alt = new win.KeyboardEvent("", { key: "Alt", code: "AltLeft" });
+  const arrow = new win.KeyboardEvent("", {
+    key,
+    code: key,
+    keyCode: key === "ArrowUp" ? 38 : 40,
+  });
+  tip.keydown(alt);
+  tip.keydown(arrow);
+  tip.keyup(arrow);
+  tip.keyup(alt);
+}
+
 /** The keys of a view's rows of one kind, in order. */
 export function rowKeys(view: Element | null, selector: string): string[] {
   if (!view) return [];
