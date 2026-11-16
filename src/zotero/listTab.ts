@@ -116,12 +116,13 @@ export function reopenListTab(
   tab: OpenTab & { kind: "list" },
   win: _ZoteroTypes.MainWindow = Zotero.getMainWindow(),
 ): boolean {
-  const collection = Zotero.Collections.getByLibraryAndKey(
-    tab.libraryID,
-    tab.collectionKey,
-  );
-  if (!collection || !listFor(collection.id)) return false;
+  // Each lookup inside the guard: one that throws drops this tab, not the rest.
   try {
+    const collection = Zotero.Collections.getByLibraryAndKey(
+      tab.libraryID,
+      tab.collectionKey,
+    );
+    if (!collection || !listFor(collection.id)) return false;
     openListTab(collection.id, win, { select: false });
     return true;
   } catch (error) {
