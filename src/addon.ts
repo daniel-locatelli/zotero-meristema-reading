@@ -3,6 +3,7 @@ import hooks from "./hooks";
 import { changesEmitted } from "./zotero/changes";
 import { renderList, type ListViewOptions } from "./zotero/listView";
 import { whenIdle } from "./zotero/notifier";
+import { openOverviewTab } from "./zotero/overviewTab";
 import { fullMirrorCount, simulateSync } from "./zotero/stateStore";
 import {
   stepCell,
@@ -29,6 +30,8 @@ export interface ReadingAPI {
     collectionID: number,
     options: ListViewOptions,
   ): void;
+  /** Opens the Reading Overview in `win`, or selects it, as its menu entry will. */
+  openOverview(win: _ZoteroTypes.MainWindow): void;
 }
 
 class Addon {
@@ -56,6 +59,7 @@ class Addon {
       fullMirrors: fullMirrorCount,
       simulateSync,
       renderList,
+      openOverview: (win: _ZoteroTypes.MainWindow) => openOverviewTab(win),
     });
   }
 }

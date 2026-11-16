@@ -163,3 +163,120 @@
 .mr-readonly .mr-unordered:empty::after {
   content: none;
 }
+/* The Reading Overview: the queue on top, every other list below. */
+.mr-overview {
+  gap: 10px;
+}
+.mr-overview-heading {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+.mr-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mr-queue-next {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--fill-quinary);
+}
+.mr-queue-next .mr-title {
+  font-size: 1.3em;
+  white-space: normal;
+}
+.mr-queue-next .mr-why,
+.mr-queue-next .mr-sources {
+  grid-column: 1 / -1;
+}
+.mr-overview p.mr-why {
+  margin: 0;
+  resize: none;
+  white-space: pre-wrap;
+  color: var(--fill-secondary);
+}
+.mr-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  color: var(--fill-secondary);
+}
+/* A source list, styled as a link: it opens that list's tab. */
+.mr-source {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.mr-queue-after,
+.mr-overview-lists {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mr-queue-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+}
+.mr-queue-none,
+.mr-queue-hint,
+.mr-queue-empty,
+.mr-queue-done,
+.mr-queue-duplicate {
+  margin: 0;
+  color: var(--fill-secondary);
+}
+.mr-open-queue {
+  align-self: flex-start;
+}
+.mr-overview-row {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr auto 2fr;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.mr-overview-row:hover {
+  background: var(--fill-quinary);
+}
+.mr-row-topic {
+  font-weight: 600;
+}
+.mr-row-folder,
+.mr-row-progress {
+  color: var(--fill-secondary);
+}
+.mr-row-progress {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mr-row-topic,
+.mr-row-folder,
+.mr-row-next {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 600px) {
+  .mr-overview-row {
+    grid-template-columns: 1fr auto;
+  }
+}

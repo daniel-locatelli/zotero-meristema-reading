@@ -16,7 +16,7 @@ import { report } from "./report";
 import { markItems, stateOfItem } from "./stateStore";
 
 const HTML = "http://www.w3.org/1999/xhtml";
-const STATE_LABEL: Record<ReadState, string> = {
+export const STATE_LABEL: Record<ReadState, string> = {
   unread: "Unread",
   reading: "Reading",
   read: "Read",
@@ -63,7 +63,7 @@ export function libraryEditable(libraryID: number): boolean {
   return Boolean((Zotero.Libraries.get(libraryID) as any)?.editable);
 }
 
-function element<K extends keyof HTMLElementTagNameMap>(
+export function element<K extends keyof HTMLElementTagNameMap>(
   doc: Document,
   tag: K,
   className: string,
@@ -146,7 +146,7 @@ function restoreFocus(container: HTMLElement, wanted: FocusSpot | null): void {
 }
 
 /** Shows a paper in its folder in the library tab, from the sidebar or a list tab. */
-async function showInLibrary(
+export async function showInLibrary(
   doc: Document,
   collectionID: number,
   itemID: number,

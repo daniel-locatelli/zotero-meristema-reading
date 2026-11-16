@@ -14,6 +14,12 @@ import {
 import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
 import {
+  closeOverviewTabs,
+  OVERVIEW_TAB_TYPE,
+  reopenOverviewTab,
+  startOverviewTabs,
+} from "./zotero/overviewTab";
+import {
   registerPreferences,
   unregisterPreferences,
 } from "./zotero/preferences";
@@ -92,12 +98,22 @@ async function onStartup(): Promise<void> {
   } catch (error) {
     report(error);
   }
-  // The list tabs open when Zotero quit come back, behind the library tab.
+  try {
+    startOverviewTabs();
+  } catch (error) {
+    report(error);
+  }
+  // The plugin tabs open when Zotero quit come back, behind the library tab;
+  // each reopen guards itself, so one that fails keeps the rest.
   try {
     const win = Zotero.getMainWindow();
     if (win) {
       reopenRecorded((tabs) =>
-        tabs.filter((tab) => tab.kind !== "list" || reopenListTab(tab, win)),
+        tabs.filter((tab) =>
+          tab.kind === "list"
+            ? reopenListTab(tab, win)
+            : reopenOverviewTab(win),
+        ),
       );
     }
   } catch (error) {
@@ -116,7 +132,7 @@ async function onStartup(): Promise<void> {
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   win.MozXULElement.insertFTLIfNeeded(`${config.addonRef}-mainWindow.ftl`);
   installStyles(win);
-  installTabHooks(win, [LIST_TAB_TYPE]);
+  installTabHooks(win, [LIST_TAB_TYPE, OVERVIEW_TAB_TYPE]);
 }
 
 async function onMainWindowUnload(
@@ -128,7 +144,9 @@ async function onShutdown(_appShutdown: boolean): Promise<void> {
     Services.obs.removeObserver(quitObserver, "quit-application-granted");
     quitObserverInstalled = false;
   }
+  // The list tabs' shutdown freezes the record, so the Overview keeps its own.
   closeListTabs();
+  closeOverviewTabs();
   unregisterPreferences();
   unregisterListSection();
   unregisterMenus();
