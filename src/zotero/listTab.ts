@@ -37,14 +37,19 @@ function titleOf(collectionID: number): string {
   );
 }
 
+/** Opens the Overview; handed in by hooks so the two tabs do not import each other. */
+let openOverview: ((win: _ZoteroTypes.MainWindow) => void) | undefined;
+
 function render(tabID: string): void {
   const view = views.get(tabID);
   if (!view) return;
   const collection = Zotero.Collections.get(view.collectionID);
+  const open = openOverview;
   renderList(view.container, view.collectionID, {
     mode: "tab",
     currentKey: null,
     editable: Boolean(collection) && libraryEditable(collection.libraryID),
+    onOpenOverview: open ? () => open(view.win) : undefined,
   });
   // A list that is gone keeps its last title; the view says it is gone.
   if (!listFor(view.collectionID)) return;
@@ -101,8 +106,11 @@ export function openListTab(
   render(tabID);
 }
 
-export function startListTabs(): void {
+export function startListTabs(
+  hooks: { openOverview?: (win: _ZoteroTypes.MainWindow) => void } = {},
+): void {
   if (unsubscribe) return;
+  openOverview = hooks.openOverview;
   unsubscribe = onChange(() => {
     for (const tabID of views.keys()) render(tabID);
   });

@@ -127,7 +127,8 @@
   color: var(--fill-tertiary);
   font-size: 0.9em;
 }
-.mr-open-tab {
+.mr-open-tab,
+.mr-open-overview {
   align-self: flex-start;
 }
 .mr-tab-content {

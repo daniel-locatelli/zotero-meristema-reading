@@ -56,6 +56,8 @@ export interface ListViewOptions {
    */
   editable: boolean;
   onOpenTab?: () => void;
+  /** In a list tab, opens the Reading Overview. */
+  onOpenOverview?: () => void;
 }
 
 /** Whether the reader may change what a library holds. */
@@ -335,6 +337,16 @@ export function renderList(
     const open = element(doc, "button", "mr-open-tab", "Open as Tab");
     open.addEventListener("click", () => options.onOpenTab?.());
     container.append(open);
+  }
+  if (options.onOpenOverview) {
+    const overview = element(
+      doc,
+      "button",
+      "mr-open-overview",
+      "Reading Overview",
+    );
+    overview.addEventListener("click", () => options.onOpenOverview?.());
+    container.append(overview);
   }
 
   function paperParts(row: HTMLElement, key: string): void {

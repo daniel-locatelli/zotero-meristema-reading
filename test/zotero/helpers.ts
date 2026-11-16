@@ -167,6 +167,22 @@ export async function collectionMenuEntry(
   return { popup, entry: popup.querySelector(`[data-l10n-id="${l10nID}"]`) };
 }
 
+/** Opens My Library's context menu and finds a plugin entry in it. */
+export async function libraryMenuEntry(
+  win: any,
+  l10nID: string,
+): Promise<{ popup: any; entry: any }> {
+  await win.ZoteroPane.collectionsView.selectLibrary(
+    Zotero.Libraries.userLibraryID,
+  );
+  const popup = win.document.getElementById("zotero-collectionmenu");
+  await win.ZoteroPane.buildCollectionContextMenu();
+  const showing = shown(popup);
+  popup.openPopup(null, "after_start", 0, 0, false, false);
+  await showing;
+  return { popup, entry: popup.querySelector(`[data-l10n-id="${l10nID}"]`) };
+}
+
 export interface Alert {
   title: string;
   text: string;

@@ -15,6 +15,7 @@ import { registerMenus, unregisterMenus } from "./zotero/menus";
 import { registerNotifier, unregisterNotifier } from "./zotero/notifier";
 import {
   closeOverviewTabs,
+  openOverviewTab,
   OVERVIEW_TAB_TYPE,
   reopenOverviewTab,
   startOverviewTabs,
@@ -94,7 +95,7 @@ async function onStartup(): Promise<void> {
   // Likewise a section that fails to register.
   try {
     registerListSection((collectionID, win) => openListTab(collectionID, win));
-    startListTabs();
+    startListTabs({ openOverview: (win) => openOverviewTab(win) });
   } catch (error) {
     report(error);
   }

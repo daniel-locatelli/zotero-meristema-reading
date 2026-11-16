@@ -3,6 +3,7 @@ import type { ReadState } from "../format/readState";
 import { failedWith } from "./alerts";
 import { editList, listFor, makeReadingList } from "./listStore";
 import { openListTab } from "./listTab";
+import { openOverviewTab } from "./overviewTab";
 import { libraryEditable } from "./listView";
 import { report } from "./report";
 import { markItems } from "./stateStore";
@@ -88,6 +89,21 @@ function contextCollectionID(context: any): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+/** Whether the menu was opened on My Library's own row. */
+function onMyLibrary(context: any): boolean {
+  const rows = contextValue(context, "collectionTreeRows");
+  const selected = Array.isArray(rows)
+    ? rows
+    : [contextValue(context, "collectionTreeRow")];
+  if (selected.length !== 1 || selected[0]?.isLibrary?.(false) !== true) {
+    return false;
+  }
+  return (
+    contextValue(selected[0], "ref")?.libraryID ===
+    Zotero.Libraries.userLibraryID
+  );
+}
+
 function canMakeList(collectionID: number): boolean {
   const collection = Zotero.Collections.get(collectionID);
   if (!collection) return false;
@@ -133,6 +149,19 @@ function clearLabel(win: _ZoteroTypes.MainWindow): string {
 
 function collectionMenus(): MenuData[] {
   return [
+    {
+      menuType: "menuitem",
+      l10nID: `${config.addonRef}-open-reading-overview`,
+      icon: ICON,
+      onShowing: (_event: Event, context: any) => {
+        const available = onMyLibrary(context);
+        context.setVisible(available);
+        context.setEnabled(available);
+      },
+      onCommand: (_event: Event, context: any) => {
+        if (onMyLibrary(context)) openOverviewTab(contextWindow(context));
+      },
+    },
     {
       menuType: "menuitem",
       l10nID: `${config.addonRef}-make-reading-list`,

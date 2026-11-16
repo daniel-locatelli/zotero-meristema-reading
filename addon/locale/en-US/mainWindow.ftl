@@ -15,6 +15,8 @@ section-sidenav =
     .tooltiptext = Reading list
 open-reading-list =
     .label = Open Reading List
+open-reading-overview =
+    .label = Open Reading Overview
 clear-reading-list =
     .label = Clear Reading List…
 # The Clear Reading List dialog's button that clears.

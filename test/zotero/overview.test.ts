@@ -11,8 +11,11 @@ import {
   type ReadState,
 } from "../../src/format/readState";
 import {
+  collectionMenuEntry,
+  command,
   eraseStateNotes,
   idle,
+  libraryMenuEntry,
   makeListNote,
   makePaper,
   plugin,
@@ -345,6 +348,71 @@ describe("The Overview tab", function () {
       shellsRow()?.querySelector(".mr-row-next")?.textContent,
       `Shells is all read too: ${seen()}`,
     ).to.equal("All read");
+  });
+
+  it("opens from My Library's menu", async function () {
+    for (const tab of tabsOf(OVERVIEW_TAB_TYPE)) win.Zotero_Tabs.close(tab.id);
+    const library = await libraryMenuEntry(
+      win,
+      `${config.addonRef}-open-reading-overview`,
+    );
+    try {
+      expect(library.entry, "the entry is on My Library's menu").to.exist;
+      expect(library.entry.hidden, "the entry is shown").to.equal(false);
+      await command(library.entry);
+    } finally {
+      library.popup.hidePopup();
+    }
+    const tab = await waitFor(() => tabsOf(OVERVIEW_TAB_TYPE)[0], 10_000);
+    expect(tab, "the overview tab opened").to.exist;
+    expect(win.Zotero_Tabs.selectedID, "it is selected").to.equal(tab.id);
+    win.Zotero_Tabs.select("zotero-pane");
+    const folder = await collectionMenuEntry(
+      win,
+      shells.id,
+      `${config.addonRef}-open-reading-overview`,
+    );
+    try {
+      expect(
+        !folder.entry || folder.entry.hidden,
+        "the entry is hidden on a folder's menu",
+      ).to.equal(true);
+    } finally {
+      folder.popup.hidePopup();
+    }
+  });
+
+  it("opens from a list tab's header", async function () {
+    for (const tab of tabsOf(OVERVIEW_TAB_TYPE)) win.Zotero_Tabs.close(tab.id);
+    const queueTab = `${LIST_TAB_TYPE}-${queueFolder.id}`;
+    plugin().api.openOverview(win);
+    await waitFor(() => find(".mr-open-queue"), 10_000);
+    find(".mr-open-queue")!.click();
+    const opened = await waitFor(
+      () => win.Zotero_Tabs.selectedID === queueTab,
+      10_000,
+    );
+    expect(opened, `the queue's tab: ${win.Zotero_Tabs.selectedID}`).to.equal(
+      true,
+    );
+    const button = await waitFor(
+      () =>
+        win.document.querySelector(
+          ".mr-list.mr-tab .mr-open-overview",
+        ) as HTMLElement | null,
+      10_000,
+    );
+    expect(button, "the header link").to.exist;
+    expect(button!.textContent).to.equal("Reading Overview");
+    button!.click();
+    const tab = await waitFor(() => tabsOf(OVERVIEW_TAB_TYPE)[0], 10_000);
+    expect(tab, "the overview tab opened").to.exist;
+    const selected = await waitFor(
+      () => win.Zotero_Tabs.selectedID === tab.id,
+      10_000,
+    );
+    expect(selected, `selected: ${win.Zotero_Tabs.selectedID}`).to.equal(true);
+    for (const open of tabsOf(LIST_TAB_TYPE)) win.Zotero_Tabs.close(open.id);
   });
 
   it("comes back after a restart", async function () {
