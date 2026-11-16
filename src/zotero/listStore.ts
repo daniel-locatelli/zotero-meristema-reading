@@ -32,7 +32,10 @@ export interface FolderList {
   cells: Map<string, string>;
   /** Further list notes in the folder, which readers ignore. */
   ignoredNoteIDs: number[];
-  /** The list note also carries the queue tag (it may still lose the pick to an older one). */
+  /**
+   * The list note also carries the queue tag (it may still lose the pick to an older one).
+   * It feeds the signature, so tagging by hand redraws the Overview.
+   */
   queueTagged: boolean;
   /** Everything a view draws of the list, to tell whether it changed. */
   signature: string;

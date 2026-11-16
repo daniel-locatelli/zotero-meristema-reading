@@ -2,6 +2,7 @@ import { config } from "../../package.json";
 import { withoutTab, withTab } from "../domain/openTabs";
 import { onChange } from "./changes";
 import { openListTab } from "./listTab";
+import { element } from "./listView";
 import { readOverview } from "./overviewStore";
 import { renderOverview } from "./overviewView";
 import { openPluginTab, readRecord, writeRecord } from "./pluginTab";
@@ -26,12 +27,33 @@ async function redraw(win: _ZoteroTypes.MainWindow): Promise<void> {
   const view = views.get(win);
   if (!view) return;
   const mine = ++view.generation;
-  const data = await readOverview();
-  // A later redraw started while this one read, or the tab closed: it draws instead.
+  let data: Awaited<ReturnType<typeof readOverview>>;
+  try {
+    data = await readOverview();
+  } catch (error) {
+    // A later redraw started while this one read, or the tab closed: it draws instead.
+    if (mine !== view.generation || views.get(win) !== view) return;
+    drawFailure(view.body);
+    throw error;
+  }
   if (mine !== view.generation || views.get(win) !== view) return;
   renderOverview(view.body, data, {
     openList: (collectionID) => openListTab(collectionID, win),
   });
+}
+
+/** A read that threw leaves one line, not a blank tab; the caller reports the error. */
+function drawFailure(body: HTMLElement): void {
+  const doc = body.ownerDocument;
+  if (!doc) return;
+  body.replaceChildren(
+    element(
+      doc,
+      "p",
+      "mr-failure",
+      "The Reading Overview could not be read. See the error console.",
+    ),
+  );
 }
 
 /**

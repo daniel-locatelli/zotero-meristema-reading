@@ -331,6 +331,25 @@ describe("The Overview tab", function () {
     expect(back, `Shells reads again: ${seen()}`).to.equal(true);
   });
 
+  it("says The queue is empty when the queue has no steps", async function () {
+    const html = queueNote.getNote();
+    queueNote.setNote(listHtml("Reading queue", []));
+    await queueNote.saveTx({ skipSelect: true });
+    await idle();
+    const empty = await waitFor(
+      () => textOf(".mr-queue-empty") === "The queue is empty.",
+      10_000,
+    );
+    expect(empty, `the empty queue: ${seen()}`).to.equal(true);
+    expect(find(".mr-queue-next"), seen()).to.not.exist;
+    expect(find(".mr-open-queue")?.textContent, seen()).to.equal("Open queue");
+    queueNote.setNote(html);
+    await queueNote.saveTx({ skipSelect: true });
+    await idle();
+    const back = await waitFor(() => nextKey() === b.key, 10_000);
+    expect(back, `the queue reads again: ${seen()}`).to.equal(true);
+  });
+
   it("says All read when every queue step is read", async function () {
     await writeStates([
       [a, "read"],
