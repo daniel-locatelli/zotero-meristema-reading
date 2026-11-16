@@ -29,6 +29,14 @@ Meristema Reading is a Zotero 9 and 10 plugin built from this repo.
   come back when it starts, in the first main window.
 - **Clear Reading List** (folder menu): after a warning, empties the steps.
   The folder, the note and the papers stay.
+- **Reading queue**: the list whose note also carries the tag
+  `meristema-reading-queue` (in My Library; the oldest such note when there are
+  two). Any paper can be a step, and it then also sits in the queue's folder.
+  Claude writes it with `zot.py reading-list --queue`.
+- **Open Reading Overview** (My Library's menu, or Reading Overview in a list
+  tab): the queue's next paper with its reason and the lists it comes from, the
+  steps after it, and every list's progress and next step. Click a state to
+  mark it, a list to open it.
 - **Settings** (Zotero Settings, Meristema Reading): how papers are labelled in
   the section and the tab: Author, year; Title; or Author, year, title.
 
