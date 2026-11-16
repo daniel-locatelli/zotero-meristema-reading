@@ -1,20 +1,23 @@
 import { config } from "../../package.json";
-import {
-  parseOpenTabs,
-  withoutTab,
-  withTab,
-  type OpenTab,
-} from "../domain/openTabs";
+import { withoutTab, withTab, type OpenTab } from "../domain/openTabs";
 import { onChange } from "./changes";
 import { listFor } from "./listStore";
 import { libraryEditable, renderList } from "./listView";
+import {
+  freezeOpenTabs,
+  openPluginTab,
+  readRecord,
+  writeRecord,
+} from "./pluginTab";
 import { report } from "./report";
 
+export { freezeOpenTabs };
+
 const TAB_TYPE = `${config.addonRef}-list`;
-const HOOK_MARKER = "__meristemaReadingTabHooks";
+export const LIST_TAB_TYPE = TAB_TYPE;
 /** The tab bar draws this as the plugin's logo (`addon/content/tabIcon.css`). */
 const TAB_ICON = "meristema-reading-list";
-const OPEN_TABS_PREF = `${config.prefsPrefix}.openTabs`;
+
 const views = new Map<
   string,
   {
@@ -24,75 +27,6 @@ const views = new Map<
   }
 >();
 let unsubscribe: (() => void) | null = null;
-/**
- * While frozen, opening and closing tabs leaves the open-tab record alone:
- * Zotero quitting or the plugin shutting down closes every tab, and the
- * record must outlive that.
- */
-let recordFrozen = false;
-
-function readRecord(): OpenTab[] {
-  return parseOpenTabs(String(Zotero.Prefs.get(OPEN_TABS_PREF, true) ?? ""));
-}
-
-function writeRecord(list: OpenTab[]): void {
-  if (recordFrozen) return;
-  Zotero.Prefs.set(OPEN_TABS_PREF, JSON.stringify(list), true);
-}
-
-/** Stops the open-tab record changing until the plugin starts again. */
-export function freezeOpenTabs(): void {
-  recordFrozen = true;
-}
-
-/**
- * Keeps list tabs out of Zotero's saved session: a restored tab would come
- * back with no view, so the plugin keeps its own record of them and reopens
- * them itself (`reopenListTabs`).
- */
-export function installTabHooks(win: _ZoteroTypes.MainWindow): void {
-  const manager = win.Zotero_Tabs;
-  if (!manager || manager[HOOK_MARKER]) return;
-  const getState = manager.getState.bind(manager);
-  manager.getState = (): any[] =>
-    getState().filter(
-      (tab: any) =>
-        String(tab?.type ?? "").replace(/-unloaded$/, "") !== TAB_TYPE,
-    );
-  manager[HOOK_MARKER] = true;
-}
-
-/**
- * Shuts Zotero's context pane over a list tab. Zotero opens it only for
- * reader and note tabs, but its layout pass still shows the splitter over any
- * other tab, and a pane left open by a reader tab stays open (as Meristema's
- * graph tab found).
- */
-const SPLITTER_IDS = [
-  "zotero-context-splitter",
-  "zotero-context-splitter-stacked",
-];
-
-function hideContextPane(
-  win: _ZoteroTypes.MainWindow,
-  container: HTMLElement,
-): void {
-  const controller = (win as any).ZoteroContextPane;
-  controller?.splitter?.setAttribute?.("hidden", "true");
-  for (const id of SPLITTER_IDS) {
-    win.document.getElementById(id)?.setAttribute("hidden", "true");
-  }
-  win.document
-    .getElementById("zotero-context-pane")
-    ?.setAttribute("collapsed", "true");
-  if (controller?.sidenav) controller.sidenav.hidden = true;
-  const content = container as HTMLElement & {
-    setBottomPlaceholderHeight?: (height: number) => void;
-    setContextPaneOpen?: (open: boolean) => void;
-  };
-  content.setBottomPlaceholderHeight?.(0);
-  content.setContextPaneOpen?.(false);
-}
 
 /** A list tab's title: the list's topic, else its folder's name. */
 function titleOf(collectionID: number): string {
@@ -148,62 +82,21 @@ export function openListTab(
         collectionKey: collection.key,
       }
     : null;
-  let splitterWatch: MutationObserver | null = null;
-  const { container } = manager.add({
+  const body = openPluginTab(win, {
     id: tabID,
     type: TAB_TYPE,
     title: titleOf(collectionID),
-    data: { collectionID, icon: TAB_ICON },
+    icon: TAB_ICON,
+    data: { collectionID },
     select,
     onClose: () => {
       views.delete(tabID);
-      splitterWatch?.disconnect();
       // The reader closed it, so its record goes; quitting or shutting down
       // has frozen the record first, and this writes nothing.
       if (record) writeRecord(withoutTab(readRecord(), record));
     },
   });
   if (record) writeRecord(withTab(readRecord(), record));
-  container.classList.add("mr-tab-content");
-  container.addEventListener("tab-selection-change", (event: Event) => {
-    if ((event as CustomEvent<{ selected?: boolean }>).detail?.selected) {
-      hideContextPane(win, container);
-    }
-  });
-  // The tab was selected inside add(), before the listener was there.
-  if (manager.selectedID === tabID) hideContextPane(win, container);
-  // Zotero lays the context pane out again on a window resize, and when its
-  // tab-select notifier reaches the pane after the tab's own selection event;
-  // either shows the splitter over any tab but the library's. It is hidden
-  // again whenever that happens over this tab.
-  splitterWatch = new win.MutationObserver(() => {
-    if (manager.selectedID !== tabID) return;
-    const shown = SPLITTER_IDS.some(
-      (id) =>
-        win.document.getElementById(id)?.getAttribute("hidden") !== "true",
-    );
-    if (shown) hideContextPane(win, container);
-  });
-  for (const id of SPLITTER_IDS) {
-    const splitter = win.document.getElementById(id);
-    if (splitter) {
-      splitterWatch!.observe(splitter, {
-        attributes: true,
-        attributeFilter: ["hidden"],
-      });
-    }
-  }
-  const scroll = container.ownerDocument.createElementNS(
-    "http://www.w3.org/1999/xhtml",
-    "div",
-  ) as HTMLElement;
-  scroll.className = "mr-tab-scroll";
-  const body = container.ownerDocument.createElementNS(
-    "http://www.w3.org/1999/xhtml",
-    "div",
-  ) as HTMLElement;
-  scroll.append(body);
-  container.append(scroll);
   views.set(tabID, { container: body, collectionID, win });
   render(tabID);
 }
@@ -216,38 +109,25 @@ export function startListTabs(): void {
 }
 
 /**
- * Reopens, behind the selected tab, the list tabs open when Zotero quit or
- * the plugin shut down, and forgets those whose folder or list is gone.
+ * Reopens one recorded list tab behind the selected tab. Says whether it is
+ * kept: false when its folder or list is gone, or opening it threw.
  */
-export function reopenListTabs(
+export function reopenListTab(
+  tab: OpenTab & { kind: "list" },
   win: _ZoteroTypes.MainWindow = Zotero.getMainWindow(),
-): void {
-  if (!win) return;
-  const kept: OpenTab[] = [];
-  recordFrozen = true;
+): boolean {
+  const collection = Zotero.Collections.getByLibraryAndKey(
+    tab.libraryID,
+    tab.collectionKey,
+  );
+  if (!collection || !listFor(collection.id)) return false;
   try {
-    for (const tab of readRecord()) {
-      // Other kinds (the Overview) are reopened elsewhere; the record keeps them.
-      if (tab.kind !== "list") {
-        kept.push(tab);
-        continue;
-      }
-      const collection = Zotero.Collections.getByLibraryAndKey(
-        tab.libraryID,
-        tab.collectionKey,
-      );
-      if (!collection || !listFor(collection.id)) continue;
-      try {
-        openListTab(collection.id, win, { select: false });
-        kept.push(tab);
-      } catch (error) {
-        report(error);
-      }
-    }
-  } finally {
-    recordFrozen = false;
+    openListTab(collection.id, win, { select: false });
+    return true;
+  } catch (error) {
+    report(error);
+    return false;
   }
-  writeRecord(kept);
 }
 
 export function closeListTabs(): void {

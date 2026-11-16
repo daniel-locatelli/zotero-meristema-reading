@@ -6,10 +6,9 @@ import {
 import { clearLists } from "./zotero/listStore";
 import {
   closeListTabs,
-  freezeOpenTabs,
-  installTabHooks,
+  LIST_TAB_TYPE,
   openListTab,
-  reopenListTabs,
+  reopenListTab,
   startListTabs,
 } from "./zotero/listTab";
 import { registerMenus, unregisterMenus } from "./zotero/menus";
@@ -18,6 +17,11 @@ import {
   registerPreferences,
   unregisterPreferences,
 } from "./zotero/preferences";
+import {
+  freezeOpenTabs,
+  installTabHooks,
+  reopenRecorded,
+} from "./zotero/pluginTab";
 import { stopQueue } from "./zotero/queue";
 import { report } from "./zotero/report";
 import { resetStateStore, startStateStore } from "./zotero/stateStore";
@@ -90,7 +94,12 @@ async function onStartup(): Promise<void> {
   }
   // The list tabs open when Zotero quit come back, behind the library tab.
   try {
-    reopenListTabs();
+    const win = Zotero.getMainWindow();
+    if (win) {
+      reopenRecorded((tabs) =>
+        tabs.filter((tab) => tab.kind !== "list" || reopenListTab(tab, win)),
+      );
+    }
   } catch (error) {
     report(error);
   }
@@ -107,7 +116,7 @@ async function onStartup(): Promise<void> {
 async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   win.MozXULElement.insertFTLIfNeeded(`${config.addonRef}-mainWindow.ftl`);
   installStyles(win);
-  installTabHooks(win);
+  installTabHooks(win, [LIST_TAB_TYPE]);
 }
 
 async function onMainWindowUnload(
