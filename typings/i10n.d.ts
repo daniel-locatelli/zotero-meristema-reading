@@ -11,6 +11,7 @@ export type FluentMessageId =
   | 'mark-submenu'
   | 'mark-unread'
   | 'open-reading-list'
+  | 'open-reading-overview'
   | 'pref-paper-label-author-year'
   | 'pref-paper-label-author-year-title'
   | 'pref-paper-label-heading'
