@@ -9,6 +9,7 @@ import {
 import { stepCells } from "../domain/stepColumn";
 import type { ParseFailure } from "../format/common";
 import { paperId } from "../format/readState";
+import { READING_QUEUE_TAG } from "../format/readingQueue";
 import {
   READING_LIST_TAG,
   resolveReadingList,
@@ -31,6 +32,8 @@ export interface FolderList {
   cells: Map<string, string>;
   /** Further list notes in the folder, which readers ignore. */
   ignoredNoteIDs: number[];
+  /** The list note also carries the queue tag (it may still lose the pick to an older one). */
+  queueTagged: boolean;
   /** Everything a view draws of the list, to tell whether it changed. */
   signature: string;
 }
@@ -125,6 +128,9 @@ function readList(collectionID: number): FolderList | null {
       })),
   );
   if (!pick) return null;
+  const queueTagged = (Zotero.Items.get(pick.id) as Zotero.Item).hasTag(
+    READING_QUEUE_TAG,
+  );
   const ignored = pick.ignored.map((id) => {
     const other = Zotero.Items.get(id) as Zotero.Item | false;
     return [id, other ? other.getNoteTitle() : ""];
@@ -137,7 +143,13 @@ function readList(collectionID: number): FolderList | null {
       resolved: null,
       cells: new Map(),
       ignoredNoteIDs: pick.ignored,
-      signature: JSON.stringify([pick.id, pick.parsed.reason, ignored]),
+      queueTagged,
+      signature: JSON.stringify([
+        pick.id,
+        pick.parsed.reason,
+        ignored,
+        queueTagged,
+      ]),
     };
   }
   const papers = children.filter((item) => item.isRegularItem());
@@ -161,6 +173,7 @@ function readList(collectionID: number): FolderList | null {
     resolved,
     cells: stepCells(resolved),
     ignoredNoteIDs: pick.ignored,
+    queueTagged,
     signature: JSON.stringify([
       pick.id,
       pick.parsed.value,
@@ -168,6 +181,7 @@ function readList(collectionID: number): FolderList | null {
       ignored,
       style,
       drawn,
+      queueTagged,
     ]),
   };
 }

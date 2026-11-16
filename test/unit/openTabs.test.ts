@@ -2,13 +2,34 @@ import { describe, it } from "node:test";
 import { expect } from "chai";
 import { parseOpenTabs, withoutTab, withTab } from "../../src/domain/openTabs";
 
-const a = { libraryID: 1, collectionKey: "AAAA1111" };
-const b = { libraryID: 1, collectionKey: "BBBB2222" };
-const c = { libraryID: 2, collectionKey: "AAAA1111" };
+const a = { kind: "list" as const, libraryID: 1, collectionKey: "AAAA1111" };
+const b = { kind: "list" as const, libraryID: 1, collectionKey: "BBBB2222" };
+const c = { kind: "list" as const, libraryID: 2, collectionKey: "AAAA1111" };
 
 describe("the open-tab record", () => {
   it("reads the tabs it wrote", () => {
     expect(parseOpenTabs(JSON.stringify([a, c]))).to.deep.equal([a, c]);
+  });
+
+  it("reads an entry without a kind as a list tab", () => {
+    expect(
+      parseOpenTabs('[{"libraryID":1,"collectionKey":"ABCD2345"}]'),
+    ).to.deep.equal([
+      { kind: "list", libraryID: 1, collectionKey: "ABCD2345" },
+    ]);
+  });
+  it("reads the overview tab once", () => {
+    expect(
+      parseOpenTabs('[{"kind":"overview"},{"kind":"overview"}]'),
+    ).to.deep.equal([{ kind: "overview" }]);
+  });
+  it("drops an unknown kind", () => {
+    expect(parseOpenTabs('[{"kind":"graph"}]')).to.deep.equal([]);
+  });
+  it("adds and removes the overview tab", () => {
+    const list = withTab([], { kind: "overview" });
+    expect(list).to.deep.equal([{ kind: "overview" }]);
+    expect(withoutTab(list, { kind: "overview" })).to.deep.equal([]);
   });
 
   it("reads bad JSON, or JSON that is not a list, as no tabs", () => {

@@ -142,7 +142,11 @@ export function openListTab(
   const collection = Zotero.Collections.get(collectionID);
   // Kept from the start: the folder may be gone by the time the tab closes.
   const record: OpenTab | null = collection
-    ? { libraryID: collection.libraryID, collectionKey: collection.key }
+    ? {
+        kind: "list",
+        libraryID: collection.libraryID,
+        collectionKey: collection.key,
+      }
     : null;
   let splitterWatch: MutationObserver | null = null;
   const { container } = manager.add({
@@ -223,6 +227,11 @@ export function reopenListTabs(
   recordFrozen = true;
   try {
     for (const tab of readRecord()) {
+      // Other kinds (the Overview) are reopened elsewhere; the record keeps them.
+      if (tab.kind !== "list") {
+        kept.push(tab);
+        continue;
+      }
       const collection = Zotero.Collections.getByLibraryAndKey(
         tab.libraryID,
         tab.collectionKey,
