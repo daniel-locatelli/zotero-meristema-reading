@@ -48,5 +48,6 @@
     "state-mixed.json"
   ],
   "paperIds": "paper-ids.json",
-  "nextUp": "next-up.json"
+  "nextUp": "next-up.json",
+  "queue": "queue.json"
 }

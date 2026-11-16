@@ -8,7 +8,7 @@ need to read the TypeScript.
 ## Layout
 
 `index.json` names every case file:
-`{ "lists": [file], "states": [file], "writes": [file], "paperIds": file, "nextUp": file }`,
+`{ "lists": [file], "states": [file], "writes": [file], "paperIds": file, "nextUp": file, "queue": file }`,
 the first three relative to their directory. A runner must run exactly those
 cases, fail when a directory holds a `.json` the index does not name (or the
 index names one that is missing), and fail when any `.html` under `fixtures/`
@@ -43,6 +43,7 @@ Zotero note editor may leave them. Read them as UTF-8.
   is also a valid paper id.
 - `next-up.json`: `[{ "steps": [key], "states": { key: state }, "expect": key | null }]`;
   a key missing from `states` is Unread, and so is an explicit `"unread"`.
+- `queue.json`: `{ "pick": [{ "name", "notes": [{ "key", "dateAdded", "library", "tags" }], "expect": { "queue", "duplicates" } }], "sourceLists": [{ "name", "queueNote", "queue": [key], "lists": [{ "note", "topic", "papers": [key] }], "expect": { key: [note] } }] }`.
 
 ## Finding the data block
 
@@ -186,6 +187,25 @@ Keys a format does not name are ignored, and the writers drop them.
   the store's call, not the format's. Neither does the format layer decide
   that group items get no mirror tags; the store does, and no fixture here
   covers either rule.
+
+## Reading queue
+
+- The queue tag is `meristema-reading-queue`; the list tag stays
+  `meristema-reading-list`; the JSON stays `version: 1`.
+- The queue lives in My Library only; a tagged note in a group library is read
+  as an ordinary list.
+- Queue candidates are My Library notes carrying both tags that are their
+  folder's list note (the oldest by date added, then key). The queue is the
+  oldest candidate by `dateAdded`, then key, compared by code unit; the rest
+  are duplicates.
+- Source lists of a queue step: the other lists (not the queue) whose folder
+  holds the paper, ordered by topic lowercased, then note key, by code unit.
+  Computed, never stored. My Library lists only.
+- The notes given to the pick are folder list notes: a caller drops a tagged
+  note that is not its folder's list note before the pick. A note named twice
+  counts once. Lowercase as for unordered papers (Unicode, no locale); compare
+  by UTF-16 code unit. `duplicates` are oldest first. Every queue key has an
+  entry in the source lists, empty when no other list holds it.
 
 ## Ids
 

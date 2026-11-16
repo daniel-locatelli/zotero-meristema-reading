@@ -1,0 +1,142 @@
+{
+  "pick": [
+    {
+      "name": "no queue",
+      "notes": [
+        {
+          "key": "NLSTAAAA",
+          "dateAdded": "2026-11-01T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list"]
+        }
+      ],
+      "expect": { "queue": null, "duplicates": [] }
+    },
+    {
+      "name": "oldest wins",
+      "notes": [
+        {
+          "key": "NQBBBBBB",
+          "dateAdded": "2026-11-03T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        },
+        {
+          "key": "NQAAAAAA",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-queue", "meristema-reading-list"]
+        },
+        {
+          "key": "NLSTAAAA",
+          "dateAdded": "2026-11-01T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list"]
+        }
+      ],
+      "expect": { "queue": "NQAAAAAA", "duplicates": ["NQBBBBBB"] }
+    },
+    {
+      "name": "date tie goes to the smaller key",
+      "notes": [
+        {
+          "key": "NQZZZZZZ",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        },
+        {
+          "key": "NQ222222",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        }
+      ],
+      "expect": { "queue": "NQ222222", "duplicates": ["NQZZZZZZ"] }
+    },
+    {
+      "name": "a group's tagged note is an ordinary list",
+      "notes": [
+        {
+          "key": "NGRPAAAA",
+          "dateAdded": "2026-10-01T10:00:00Z",
+          "library": { "kind": "group", "id": 42 },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        },
+        {
+          "key": "NQAAAAAA",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        }
+      ],
+      "expect": { "queue": "NQAAAAAA", "duplicates": [] }
+    },
+    {
+      "name": "the queue tag alone makes no list",
+      "notes": [
+        {
+          "key": "NQAAAAAA",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-queue"]
+        }
+      ],
+      "expect": { "queue": null, "duplicates": [] }
+    },
+    {
+      "name": "a note named twice counts once",
+      "notes": [
+        {
+          "key": "NQAAAAAA",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        },
+        {
+          "key": "NQAAAAAA",
+          "dateAdded": "2026-11-02T10:00:00Z",
+          "library": { "kind": "user" },
+          "tags": ["meristema-reading-list", "meristema-reading-queue"]
+        }
+      ],
+      "expect": { "queue": "NQAAAAAA", "duplicates": [] }
+    }
+  ],
+  "sourceLists": [
+    {
+      "name": "by topic, the queue left out",
+      "queueNote": "NQAAAAAA",
+      "queue": ["PAPRAAAA", "PAPRBBBB", "PAPRCCCC"],
+      "lists": [
+        {
+          "note": "NQAAAAAA",
+          "topic": "Reading queue",
+          "papers": ["PAPRAAAA", "PAPRBBBB", "PAPRCCCC"]
+        },
+        { "note": "NLSTBBBB", "topic": "beta", "papers": ["PAPRAAAA"] },
+        {
+          "note": "NLSTAAAA",
+          "topic": "Alpha",
+          "papers": ["PAPRAAAA", "PAPRBBBB"]
+        }
+      ],
+      "expect": {
+        "PAPRAAAA": ["NLSTAAAA", "NLSTBBBB"],
+        "PAPRBBBB": ["NLSTAAAA"],
+        "PAPRCCCC": []
+      }
+    },
+    {
+      "name": "same topic goes by note key, a list named twice counts once",
+      "queueNote": "NQAAAAAA",
+      "queue": ["PAPRAAAA"],
+      "lists": [
+        { "note": "NLSTZZZZ", "topic": "Shells", "papers": ["PAPRAAAA"] },
+        { "note": "NLST2222", "topic": "shells", "papers": ["PAPRAAAA"] },
+        { "note": "NLST2222", "topic": "shells", "papers": ["PAPRAAAA"] }
+      ],
+      "expect": { "PAPRAAAA": ["NLST2222", "NLSTZZZZ"] }
+    }
+  ]
+}
