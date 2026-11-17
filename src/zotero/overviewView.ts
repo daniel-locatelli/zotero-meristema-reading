@@ -177,12 +177,14 @@ export function renderOverview(
     const node = element(doc, "li", "mr-overview-row");
     node.dataset.collectionId = String(list.collectionID);
     node.addEventListener("click", () => actions.openList(list.collectionID));
-    // A list that cannot be read has no steps: it is not All read.
+    // A list that cannot be read, or has no steps, is not All read.
     const nextText = !list.readable
       ? ""
-      : row.nextUp === null
-        ? "All read"
-        : labelOf(list, row.nextUp);
+      : !list.steps.length
+        ? "No steps"
+        : row.nextUp === null
+          ? "All read"
+          : labelOf(list, row.nextUp);
     node.append(
       element(doc, "span", "mr-row-topic", list.topic),
       element(doc, "span", "mr-row-folder", folderText(list)),

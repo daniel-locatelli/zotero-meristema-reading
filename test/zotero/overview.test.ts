@@ -331,6 +331,33 @@ describe("The Overview tab", function () {
     expect(back, `Shells reads again: ${seen()}`).to.equal(true);
   });
 
+  it("shows a list with no steps as No steps, not as All read", async function () {
+    const html = shellsNote.getNote();
+    shellsNote.setNote(listHtml("Shells", []));
+    await shellsNote.saveTx({ skipSelect: true });
+    await idle();
+    const noSteps = await waitFor(
+      () =>
+        shellsRow()?.querySelector(".mr-row-next")?.textContent === "No steps",
+      10_000,
+    );
+    expect(noSteps, `Shells has no steps: ${seen()}`).to.equal(true);
+    expect(
+      shellsRow()?.querySelector(".mr-row-progress")?.textContent,
+      seen(),
+    ).to.equal("0 read · 0 reading · 0 left");
+    shellsNote.setNote(html);
+    await shellsNote.saveTx({ skipSelect: true });
+    await idle();
+    const back = await waitFor(
+      () =>
+        shellsRow()?.querySelector(".mr-row-progress")?.textContent ===
+        "1 read · 0 reading · 1 left",
+      10_000,
+    );
+    expect(back, `Shells has its steps again: ${seen()}`).to.equal(true);
+  });
+
   it("says The queue is empty when the queue has no steps", async function () {
     const html = queueNote.getNote();
     queueNote.setNote(listHtml("Reading queue", []));
