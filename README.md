@@ -1,7 +1,7 @@
 # Meristema Reading
 
 Ordered reading lists for Zotero, with read state kept per paper. Design:
-`meristema-zotero/docs/superpowers/specs/2026-11-06-reading-lists-design.md`.
+`zotero-meristema-graph/docs/superpowers/specs/2026-11-06-reading-lists-design.md`.
 
 ## The plugin
 

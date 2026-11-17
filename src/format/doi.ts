@@ -1,4 +1,4 @@
-// Meristema's normalizeDOI (`src/domain/workIdentity.ts` in meristema-zotero)
+// Meristema's normalizeDOI (`src/domain/workIdentity.ts` in zotero-meristema-graph)
 // with locale-independent lowercasing (`toLowerCase`, not `toLocaleLowerCase`,
 // which maps `I` to a dotless `ı` under a Turkish locale); keep the two in step
 // otherwise, since a paper id is built from it.
