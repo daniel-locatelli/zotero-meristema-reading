@@ -294,11 +294,30 @@ describe("The list tab", function () {
         image: elem ? win.getComputedStyle(elem).backgroundImage : null,
       };
     };
+    const ink = () => {
+      const elem = tabIcon(tabID);
+      const style = elem ? win.getComputedStyle(elem) : null;
+      return {
+        context: style?.getPropertyValue("-moz-context-properties") ?? null,
+        fill: style?.getPropertyValue("fill") ?? null,
+        color: style?.color ?? null,
+      };
+    };
     const before = icon();
     expect(before.type, `the tab's icon: ${JSON.stringify(before)}`).to.equal(
       ICON,
     );
     expect(before.image, "the icon draws the logo").to.contain(LOGO);
+    // The logo takes the tab's text colour, so it turns light in dark mode.
+    const drawnInk = ink();
+    expect(
+      drawnInk.context,
+      `the icon's ink: ${JSON.stringify(drawnInk)}`,
+    ).to.equal("fill");
+    expect(
+      drawnInk.fill,
+      `the icon's ink: ${JSON.stringify(drawnInk)}`,
+    ).to.equal(drawnInk.color);
     expect(recorded(), "the open tab is recorded").to.deep.equal([
       collection.key,
     ]);

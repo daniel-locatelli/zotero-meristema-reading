@@ -3,4 +3,8 @@
   height: 16px;
   background: url("chrome://__addonRef__/content/icons/reading.svg") center /
     16px 16px no-repeat;
+  /* The logo is drawn in context-fill, so it takes the tab's text colour and
+     turns light in dark mode. */
+  -moz-context-properties: fill;
+  fill: currentColor;
 }
