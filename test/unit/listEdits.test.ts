@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import { expect } from "chai";
 import {
+  keepHidden,
   liveSteps,
   nextState,
   placeStep,
@@ -137,5 +138,34 @@ describe("nextState", () => {
     expect(nextState("unread")).to.equal("reading");
     expect(nextState("reading")).to.equal("read");
     expect(nextState("read")).to.equal("unread");
+  });
+});
+
+describe("keepHidden", () => {
+  const D = { key: "DDDD4444", why: "fourth" };
+  const hidden = new Set([B.key]);
+
+  it("puts a hidden step back before the step that followed it", () => {
+    // A, B (in the trash), C; the reader moved C first.
+    expect(keepHidden([A, B, C], hidden, [C, A])).to.deep.equal([B, C, A]);
+  });
+
+  it("keeps a hidden last step last", () => {
+    expect(keepHidden([A, C, B], hidden, [C, A])).to.deep.equal([C, A, B]);
+  });
+
+  it("anchors a hidden step to the next step still there when its own went", () => {
+    // A, B (in the trash), C, D; the reader took C out.
+    expect(keepHidden([A, B, C, D], hidden, [A, D])).to.deep.equal([A, B, D]);
+  });
+
+  it("keeps its reason, and leaves a list with nothing hidden as edited", () => {
+    const why = { ...B, why: "kept" };
+    expect(keepHidden([why, A], hidden, [A])).to.deep.equal([why, A]);
+    expect(keepHidden([A, C], new Set(), [C, A])).to.deep.equal([C, A]);
+  });
+
+  it("drops a hidden step the edit placed itself", () => {
+    expect(keepHidden([A, B], hidden, [B, A])).to.deep.equal([B, A]);
   });
 });

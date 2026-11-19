@@ -1,5 +1,6 @@
 import {
   nextState,
+  placeStep,
   placeStepAt,
   setWhy,
   shiftStep,
@@ -427,11 +428,17 @@ export function renderList(
     }
     why.placeholder = "Why read it";
     why.addEventListener("change", () => {
-      why.dataset.saved = why.value;
+      const previous = why.dataset.saved;
       const text = why.value;
-      void edit((steps) => setWhy(steps, step.key, text)).finally(() =>
-        redrawDeferred(container),
-      );
+      why.dataset.saved = text;
+      void editList(collectionID, (steps) => setWhy(steps, step.key, text))
+        .catch((error: unknown) => {
+          // Not saved: the field keeps the typing, held from redraws, until
+          // it is saved again or given up with Escape.
+          if (why.dataset.saved === text) why.dataset.saved = previous;
+          failed(error);
+        })
+        .finally(() => redrawDeferred(container));
     });
     why.addEventListener("blur", () => {
       // Behind the change handler's save, which the queue runs first.
@@ -476,12 +483,28 @@ export function renderList(
       );
     });
     row.addEventListener("keydown", (event: KeyboardEvent) => {
-      if (event.target === why || !moveKey(event)) return;
+      if (event.target === why) return;
+      const plainDelete =
+        event.key === "Delete" &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey;
+      if (!plainDelete && !moveKey(event)) return;
       event.preventDefault();
+      const up = event.key === "ArrowUp";
+      const last = step.step === list!.resolved!.steps.length;
+      // Nothing above the first step: no edit, and no focus left waiting
+      // for a later redraw to take.
+      if (!plainDelete && up && step.step === 1) return;
       refocus.set(container, { key: step.key, part: "row" });
-      void edit((steps) =>
-        shiftStep(steps, step.key, event.key === "ArrowUp" ? -1 : 1),
-      );
+      // Delete, or Alt+Down on the last step, takes it out of the steps:
+      // its paper joins the unordered papers just below.
+      if (plainDelete || (!up && last)) {
+        void edit((steps) => unplaceStep(steps, step.key));
+        return;
+      }
+      void edit((steps) => shiftStep(steps, step.key, up ? -1 : 1));
     });
     return row;
   }
@@ -520,8 +543,19 @@ export function renderList(
   const unordered = element(doc, "ul", "mr-unordered");
   for (const key of list.resolved.unordered) {
     const row = element(doc, "li", "mr-paper");
+    row.tabIndex = 0;
     row.draggable = editable;
     paperParts(row, key);
+    if (editable) {
+      // Alt+Up lifts the paper into the steps, last: the steps sit above.
+      row.addEventListener("keydown", (event: KeyboardEvent) => {
+        if (!moveKey(event)) return;
+        event.preventDefault();
+        if (event.key !== "ArrowUp") return;
+        refocus.set(container, { key, part: "row" });
+        void edit((steps) => placeStep(steps, key, null));
+      });
+    }
     unordered.append(row);
   }
   if (editable) {

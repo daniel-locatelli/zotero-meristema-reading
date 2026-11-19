@@ -1,4 +1,4 @@
-import { liveSteps, sameSteps } from "../domain/listEdits";
+import { keepHidden, liveSteps, sameSteps } from "../domain/listEdits";
 import {
   newListOrder,
   paperLabel,
@@ -263,14 +263,31 @@ export function makeReadingList(
 
 export class UnreadableListError extends Refusal {}
 
+/** The keys of the folder's papers that are in the trash. */
+function trashedKeys(
+  collection: Exclude<ReturnType<typeof Zotero.Collections.get>, false>,
+): Set<string> {
+  const all: Zotero.Item[] = collection.getChildItems(false, true);
+  return new Set(
+    all
+      .filter((item) => item.deleted && item.isRegularItem())
+      .map((item) => item.key),
+  );
+}
+
 /**
  * Edits a folder's steps and rewrites its list note, the readable part rebuilt
  * from the JSON. `edit` gets the live steps, as readers resolve them. A list
  * that cannot be read is never rewritten.
+ *
+ * A step whose paper is in the trash is not live, but it is kept, in its
+ * place and with its reason, so restoring the paper restores the step;
+ * `{ keepTrashed: false }` drops it with the rest (Clear Reading List).
  */
 export function editList(
   collectionID: number,
   edit: (steps: ReadingListStep[]) => ReadingListStep[],
+  { keepTrashed = true }: { keepTrashed?: boolean } = {},
 ): Promise<void> {
   return enqueue(async () => {
     forget(collectionID);
@@ -286,13 +303,18 @@ export function editList(
       );
     }
     const steps = liveSteps(list.resolved);
-    const next = edit(steps);
-    if (sameSteps(steps, next)) return;
+    const edited = edit(steps);
+    // An edit that changes nothing the reader sees leaves the note alone.
+    if (sameSteps(steps, edited)) return;
+    const next = keepTrashed
+      ? keepHidden(list.doc.steps, trashedKeys(collection), edited)
+      : edited;
     const doc: ReadingListDoc = {
       version: 1,
       topic: list.doc.topic,
       steps: next,
     };
+    const before = note.getNote();
     note.setNote(
       writeReadingList(
         doc,
@@ -306,7 +328,15 @@ export function editList(
         libraryLinkOf(collection.libraryID),
       ),
     );
-    await note.saveTx();
-    forget(collectionID);
+    try {
+      await note.saveTx();
+    } catch (error) {
+      // Not saved: the note in memory goes back, or its next save, for any
+      // reason, would write this edit after all.
+      note.setNote(before);
+      throw error;
+    } finally {
+      forget(collectionID);
+    }
   });
 }

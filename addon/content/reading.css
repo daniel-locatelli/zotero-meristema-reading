@@ -60,7 +60,8 @@
   gap: 4px 6px;
   padding: 4px;
   border-radius: 5px;
-  border: 1px solid var(--material-border-quinary, transparent);
+  /* Zotero's --material-border-quinary is a whole border, not a colour. */
+  border: var(--material-border-quinary, 1px solid transparent);
 }
 .mr-paper {
   grid-template-columns: auto 1fr;
@@ -98,14 +99,14 @@
 .mr-state[data-state="read"] {
   color: var(--mr-state-read);
 }
-/* Zotero's item-list selection; after the state colours, so it wins them. */
+/* Zotero's item-list selection. The state keeps its own colour: it sits on
+   its own button, where white could not be read. */
 .mr-current {
   background: var(--color-accent);
   color: var(--accent-white, #fff);
 }
 .mr-current .mr-number,
-.mr-current .mr-handle,
-.mr-current .mr-state {
+.mr-current .mr-handle {
   color: inherit;
 }
 .mr-why {

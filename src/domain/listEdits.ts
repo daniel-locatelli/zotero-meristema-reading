@@ -7,6 +7,36 @@ export function liveSteps(resolved: ResolvedList): ReadingListStep[] {
 }
 
 /**
+ * `edited` with the `hidden` steps of `all` put back: steps a reader cannot
+ * see for now (a paper in the trash) but would see again once it is restored.
+ * Each goes back before the step that followed it in `all`, or the next one
+ * after that still in `edited`; last when none is.
+ */
+export function keepHidden(
+  all: readonly ReadingListStep[],
+  hidden: ReadonlySet<string>,
+  edited: readonly ReadingListStep[],
+): ReadingListStep[] {
+  const placed = new Set(edited.map((step) => step.key));
+  const before = new Map<string, ReadingListStep[]>();
+  const last: ReadingListStep[] = [];
+  let waiting: ReadingListStep[] = [];
+  for (const step of all) {
+    if (hidden.has(step.key)) {
+      if (!placed.has(step.key)) waiting.push(step);
+    } else if (placed.has(step.key) && waiting.length) {
+      before.set(step.key, waiting);
+      waiting = [];
+    }
+  }
+  last.push(...waiting);
+  return [
+    ...edited.flatMap((step) => [...(before.get(step.key) ?? []), step]),
+    ...last,
+  ];
+}
+
+/**
  * `steps` with `key` placed just before `beforeKey`, or last when `beforeKey`
  * is null. A step keeps its reason when it moves; a paper new to the steps
  * gets none. Placing a step before itself, or before a key not in the steps,

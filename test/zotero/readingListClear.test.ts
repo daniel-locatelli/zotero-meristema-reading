@@ -56,7 +56,9 @@ describe("Clearing a reading list", function () {
     );
   };
   const warning = (count: string) =>
-    `Clear Reading List: Clear the ${count} of “Clear fixture”? Their papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`;
+    count.startsWith("1 ")
+      ? `Clear Reading List: Clear the ${count} of “Clear fixture”, with its reason? Its paper stays in the folder, under Not in the steps, and keeps its read state. This cannot be undone.`
+      : `Clear Reading List: Clear the ${count} of “Clear fixture”, with their reasons? Their papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`;
 
   /** Runs the menu command with Services.prompt answering `button`. */
   async function clearWith(button: number): Promise<Asked[]> {
@@ -232,7 +234,14 @@ describe("Clearing a reading list", function () {
 
   it("empties the steps when confirmed, keeping papers, note and read states", async function () {
     const states = await stateHtml();
+    // A step whose paper is in the trash goes too: restored, it is unordered.
+    papers[2].deleted = true;
+    await papers[2].saveTx();
+    await idle();
     await clearWith(0);
+    papers[2].deleted = false;
+    await papers[2].saveTx();
+    await idle();
     expect(stepKeys(), "no steps").to.deep.equal([]);
     expect(
       collection

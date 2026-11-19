@@ -18,14 +18,18 @@ export const LIST_TAB_TYPE = TAB_TYPE;
 /** The tab bar draws this as the plugin's logo (`addon/content/tabIcon.css`). */
 const TAB_ICON = "meristema-reading-list";
 
-const views = new Map<
-  string,
-  {
-    container: HTMLElement;
-    collectionID: number;
-    win: _ZoteroTypes.MainWindow;
-  }
->();
+interface ListTabView {
+  tabID: string;
+  container: HTMLElement;
+  collectionID: number;
+  win: _ZoteroTypes.MainWindow;
+}
+
+/**
+ * Every open list tab, by its body. A tab's id is the same in each window
+ * that shows the folder's list, so the id alone cannot tell them apart.
+ */
+const views = new Map<HTMLElement, ListTabView>();
 let unsubscribe: (() => void) | null = null;
 
 /** A list tab's title: the list's topic, else its folder's name. */
@@ -40,9 +44,8 @@ function titleOf(collectionID: number): string {
 /** Opens the Overview; handed in by hooks so the two tabs do not import each other. */
 let openOverview: ((win: _ZoteroTypes.MainWindow) => void) | undefined;
 
-function render(tabID: string): void {
-  const view = views.get(tabID);
-  if (!view) return;
+function render(view: ListTabView): void {
+  const { tabID } = view;
   const collection = Zotero.Collections.get(view.collectionID);
   const open = openOverview;
   renderList(view.container, view.collectionID, {
@@ -95,15 +98,16 @@ export function openListTab(
     data: { collectionID },
     select,
     onClose: () => {
-      views.delete(tabID);
+      views.delete(body);
       // The reader closed it, so its record goes; quitting or shutting down
       // has frozen the record first, and this writes nothing.
       if (record) writeRecord(withoutTab(readRecord(), record));
     },
   });
   if (record) writeRecord(withTab(readRecord(), record));
-  views.set(tabID, { container: body, collectionID, win });
-  render(tabID);
+  const view: ListTabView = { tabID, container: body, collectionID, win };
+  views.set(body, view);
+  render(view);
 }
 
 export function startListTabs(
@@ -112,7 +116,7 @@ export function startListTabs(
   if (unsubscribe) return;
   openOverview = hooks.openOverview;
   unsubscribe = onChange(() => {
-    for (const tabID of views.keys()) render(tabID);
+    for (const view of views.values()) render(view);
   });
 }
 
@@ -144,9 +148,9 @@ export function closeListTabs(): void {
   freezeOpenTabs();
   unsubscribe?.();
   unsubscribe = null;
-  for (const [tabID, view] of [...views]) {
+  for (const view of [...views.values()]) {
     try {
-      view.win.Zotero_Tabs.close(tabID);
+      view.win.Zotero_Tabs.close(view.tabID);
     } catch (error) {
       report(error);
     }

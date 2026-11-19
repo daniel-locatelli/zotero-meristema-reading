@@ -306,8 +306,9 @@ describe("Two folders' reading lists", function () {
           sidebarUnread: colourOf(sidebar, first.papers[0].key),
           tabRead: colourOf(tab, second.papers[0].key),
           tabReading: colourOf(tab, second.papers[1].key),
-          currentMarkIsRowText:
-            win.getComputedStyle(current.querySelector(".mr-state")!).color ===
+          // On its own button, so not the selected row's white text.
+          currentMarkKeepsItsColour:
+            win.getComputedStyle(current.querySelector(".mr-state")!).color !==
             win.getComputedStyle(current).color,
         };
       }
@@ -323,13 +324,13 @@ describe("Two folders' reading lists", function () {
         sidebarUnread: "unread rgb(179, 38, 30)",
         tabRead: "read rgb(45, 130, 71)",
         tabReading: "reading rgb(176, 133, 0)",
-        currentMarkIsRowText: true,
+        currentMarkKeepsItsColour: true,
       },
       dark: {
         sidebarUnread: "unread rgb(229, 83, 75)",
         tabRead: "read rgb(87, 179, 108)",
         tabReading: "reading rgb(232, 197, 71)",
-        currentMarkIsRowText: true,
+        currentMarkKeepsItsColour: true,
       },
     });
     expect(dark.matches, "the theme is back as it was").to.equal(wasDark);

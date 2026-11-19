@@ -227,7 +227,9 @@ function collectionMenus(): MenuData[] {
           prompt.confirmEx(
             win as any,
             "Clear Reading List",
-            `Clear the ${count} ${count === 1 ? "step" : "steps"} of “${topic}”? Their papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`,
+            count === 1
+              ? `Clear the 1 step of “${topic}”, with its reason? Its paper stays in the folder, under Not in the steps, and keeps its read state. This cannot be undone.`
+              : `Clear the ${count} steps of “${topic}”, with their reasons? Their papers stay in the folder, under Not in the steps, and keep their read states. This cannot be undone.`,
             flags as number,
             clearLabel(win),
             null as any,
@@ -236,7 +238,7 @@ function collectionMenus(): MenuData[] {
             { value: false },
           ) === 0;
         if (ok) {
-          void editList(id, () => []).catch(
+          void editList(id, () => [], { keepTrashed: false }).catch(
             failedWith(
               "Meristema Reading could not clear the reading list. See the error console.",
               win,

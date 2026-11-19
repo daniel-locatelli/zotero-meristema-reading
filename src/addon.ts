@@ -3,6 +3,7 @@ import hooks from "./hooks";
 import { changesEmitted } from "./zotero/changes";
 import { renderList, type ListViewOptions } from "./zotero/listView";
 import { whenIdle } from "./zotero/notifier";
+import { openListTab } from "./zotero/listTab";
 import { openOverviewTab } from "./zotero/overviewTab";
 import { fullMirrorCount, simulateSync } from "./zotero/stateStore";
 import {
@@ -32,6 +33,8 @@ export interface ReadingAPI {
   ): void;
   /** Opens the Reading Overview in `win`, or selects it, as its menu entry will. */
   openOverview(win: _ZoteroTypes.MainWindow): void;
+  /** Opens a folder's list as a tab in `win`, or selects it, as its menu entry does. */
+  openList(win: _ZoteroTypes.MainWindow, collectionID: number): void;
 }
 
 class Addon {
@@ -60,6 +63,8 @@ class Addon {
       simulateSync,
       renderList,
       openOverview: (win: _ZoteroTypes.MainWindow) => openOverviewTab(win),
+      openList: (win: _ZoteroTypes.MainWindow, collectionID: number) =>
+        openListTab(collectionID, win),
     });
   }
 }

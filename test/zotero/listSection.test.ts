@@ -23,6 +23,7 @@ import {
   rowKeys,
   stateNotes,
   waitFor,
+  withAlerts,
 } from "./helpers";
 
 const TOPIC = "Section fixture";
@@ -164,11 +165,14 @@ describe("The Reading list section", function () {
         probe.style.color = "var(--accent-white, #fff)";
         current.parentElement!.append(probe);
         const style = (elem: Element) => win.getComputedStyle(elem);
-        const parts = [".mr-number", ".mr-handle", ".mr-state", ".mr-title"];
+        const parts = [".mr-number", ".mr-handle", ".mr-title"];
+        const toggle = current.querySelector(".mr-state")!;
         seen[name] = {
           background: style(current).backgroundColor,
           color: style(current).color,
           parts: parts.map((part) => style(current.querySelector(part)!).color),
+          toggle: style(toggle).color,
+          toggleBackground: style(toggle).backgroundColor,
           accent: style(probe).backgroundColor,
           white: style(probe).color,
         };
@@ -191,10 +195,40 @@ describe("The Reading list section", function () {
         JSON.stringify({
           background: theme.accent,
           color: theme.white,
-          parts: [theme.white, theme.white, theme.white, theme.white],
+          parts: [theme.white, theme.white, theme.white],
         }),
       );
+      // The state keeps its own colour on its own button: white on the
+      // button's light grey could not be read.
+      expect(
+        theme.toggle,
+        `the state on the current row in the ${name} theme: ${JSON.stringify(seen)}`,
+      ).to.not.be.oneOf([theme.white, theme.toggleBackground]);
     }
+  });
+
+  it("outlines next up in the accent colour", async function () {
+    const next = view()!.querySelector(".mr-next") as HTMLElement;
+    expect(next, "a next-up step").to.not.equal(null);
+    const probe = win.document.createElementNS(
+      "http://www.w3.org/1999/xhtml",
+      "div",
+    ) as HTMLElement;
+    probe.style.color = "var(--color-accent)";
+    next.parentElement!.append(probe);
+    const style = win.getComputedStyle(next);
+    // A border draws at whole device pixels, so 1px may read as 0.8px.
+    const seen = {
+      style: style.borderTopStyle,
+      drawn: parseFloat(style.borderTopWidth) > 0,
+      color: style.borderTopColor,
+    };
+    const accent = win.getComputedStyle(probe).color;
+    probe.remove();
+    expect(
+      seen,
+      `next up's border is ${style.borderTopWidth}; the accent is ${accent}`,
+    ).to.deep.equal({ style: "solid", drawn: true, color: accent });
   });
 
   it("keeps the section where it was in the pane when another paper of the folder is selected", async function () {
@@ -353,6 +387,82 @@ describe("The Reading list section", function () {
     ).to.equal("Drag to reorder, or Alt+Up and Alt+Down");
     (win.document.activeElement as HTMLElement | null)?.blur();
     await idle();
+  });
+
+  it("adds a paper to the steps and takes one out from the keyboard", async function () {
+    await untilSteps([b.key, a.key]);
+    const focusedKey = () =>
+      (win.document.activeElement as HTMLElement | null)?.dataset?.key;
+    const paper = () =>
+      view()!.querySelector(`.mr-paper[data-key="${c.key}"]`) as HTMLElement;
+    const press = (target: Element, key: string) =>
+      target.dispatchEvent(
+        new win.KeyboardEvent("keydown", { key, bubbles: true }),
+      );
+    expect(paper().tabIndex, "an unordered paper takes the focus").to.equal(0);
+
+    // Alt+Up on an unordered paper: it joins the steps, last.
+    paper().focus();
+    altArrow(win, paper(), "ArrowUp");
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([
+      b.key,
+      a.key,
+      c.key,
+    ]);
+    await untilSteps([b.key, a.key, c.key]);
+    expect(focusedKey(), "the new step keeps the focus").to.equal(c.key);
+
+    // Alt+Down on the last step: it leaves the steps.
+    altArrow(win, row(c.key), "ArrowDown");
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([b.key, a.key]);
+    await untilSteps([b.key, a.key]);
+    expect(rowKeys(view(), ".mr-paper"), "unordered again").to.deep.equal([
+      c.key,
+    ]);
+    expect(focusedKey(), "the paper keeps the focus").to.equal(c.key);
+
+    // Delete on any step takes it out.
+    altArrow(win, paper(), "ArrowUp");
+    await idle();
+    await untilSteps([b.key, a.key, c.key]);
+    press(row(c.key), "Delete");
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([b.key, a.key]);
+    await untilSteps([b.key, a.key]);
+    expect(focusedKey(), "the paper keeps the focus after Delete").to.equal(
+      c.key,
+    );
+    // Delete in a reason deletes text, not the step.
+    const why = row(a.key).querySelector(".mr-why") as HTMLTextAreaElement;
+    press(why, "Delete");
+    await idle();
+    expect(stepsInNote().map((step) => step.key)).to.deep.equal([b.key, a.key]);
+
+    // Alt+Up on the first step changes nothing, and leaves no focus behind
+    // for a later redraw to take.
+    altArrow(win, row(b.key), "ArrowUp");
+    await idle();
+    (win.document.activeElement as HTMLElement | null)?.blur();
+    const parsed = parseReadingList(note.getNote());
+    const doc = (parsed as { ok: true; value: ReadingListDoc }).value;
+    for (const topic of ["Section fixture, renamed", doc.topic]) {
+      note.setNote(
+        writeReadingList({ ...doc, topic }, (key) => key, { kind: "user" }),
+      );
+      await note.saveTx();
+      await idle();
+      const drawn = await waitFor(
+        () => view()!.querySelector(".mr-topic")?.textContent === topic,
+        10_000,
+      );
+      expect(drawn, `the view redraws with “${topic}”`).to.equal(true);
+    }
+    expect(
+      view()!.contains(win.document.activeElement),
+      `no row takes the focus; ${focusedKey()} has it`,
+    ).to.equal(false);
   });
 
   it("drops an unordered paper into the steps before the step it lands on", async function () {
@@ -591,6 +701,89 @@ describe("The Reading list section", function () {
     expect(redrawn, `the view redraws after the blur: ${seen()}`).to.equal(
       true,
     );
+  });
+
+  it("keeps a reason whose save failed in its field, and says so", async function () {
+    const why = row(c.key).querySelector(".mr-why") as HTMLTextAreaElement;
+    const own = Object.getOwnPropertyDescriptor(note, "saveTx");
+    (note as any).saveTx = async () => {
+      throw new Error("simulated save failure");
+    };
+    try {
+      const alerts = await withAlerts(async (alerts) => {
+        why.focus();
+        why.value = "not saved";
+        why.dispatchEvent(new win.Event("input", { bubbles: true }));
+        why.dispatchEvent(new win.Event("change", { bubbles: true }));
+        why.blur();
+        await idle();
+        return alerts;
+      });
+      expect(alerts.length, "one alert").to.equal(1);
+    } finally {
+      if (own) Object.defineProperty(note, "saveTx", own);
+      else delete (note as any).saveTx;
+    }
+    // A store change from elsewhere redraws the view, but not over the reason.
+    const parsed = parseReadingList(note.getNote());
+    const doc = (parsed as { ok: true; value: ReadingListDoc }).value;
+    note.setNote(
+      writeReadingList(
+        {
+          ...doc,
+          steps: doc.steps.map((step) =>
+            step.key === b.key ? { ...step, why: "changed again" } : step,
+          ),
+        },
+        (key) => key,
+        { kind: "user" },
+      ),
+    );
+    await note.saveTx();
+    await idle();
+    const field = () =>
+      row(c.key)?.querySelector(".mr-why") as HTMLTextAreaElement | undefined;
+    expect(
+      field()?.value,
+      `the reason kept in its field: ${JSON.stringify({
+        same: field() === why,
+        saved: field()?.dataset.saved,
+        b: (row(b.key)?.querySelector(".mr-why") as HTMLTextAreaElement)?.value,
+      })}`,
+    ).to.equal("not saved");
+    expect(
+      stepsInNote().find((step) => step.key === c.key)?.why,
+      "the note keeps the saved reason",
+    ).to.equal("typed here");
+    // Escape gives the typing up; the view draws again.
+    field()!.focus();
+    expect(
+      win.document.activeElement === field(),
+      `the field takes the focus; ${win.document.activeElement?.className} has it`,
+    ).to.equal(true);
+    let blurred = false;
+    field()!.addEventListener("blur", () => (blurred = true), { once: true });
+    field()!.dispatchEvent(
+      new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    // A window without the system's focus moves the focus with no blur event.
+    if (!blurred) field()!.dispatchEvent(new win.FocusEvent("blur"));
+    const redrawn = await waitFor(
+      () =>
+        (row(b.key)?.querySelector(".mr-why") as HTMLTextAreaElement)?.value ===
+          "changed again" && field()?.value === "typed here",
+      10_000,
+    );
+    expect(
+      redrawn,
+      `the view redraws after Escape: ${JSON.stringify({
+        field: field()?.value,
+        saved: field()?.dataset.saved,
+        b: (row(b.key)?.querySelector(".mr-why") as HTMLTextAreaElement)?.value,
+        note: stepsInNote(),
+        focused: win.document.activeElement?.className,
+      })}`,
+    ).to.equal(true);
   });
 
   it("toggles a step's read state, and next up follows", async function () {
