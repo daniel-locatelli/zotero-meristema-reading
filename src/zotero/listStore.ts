@@ -118,7 +118,8 @@ export function reconcileLists(touched: Iterable<number>): ListChanges {
 
 function readList(collectionID: number): FolderList | null {
   const collection = Zotero.Collections.get(collectionID);
-  if (!collection) return null;
+  // A collection in the trash holds no list until it is restored.
+  if (!collection || collection.deleted) return null;
   const children: Zotero.Item[] = collection.getChildItems(false, false);
   const pick = pickListNote(
     children
@@ -149,6 +150,7 @@ function readList(collectionID: number): FolderList | null {
       queueTagged,
       signature: JSON.stringify([
         pick.id,
+        collection.name,
         pick.parsed.reason,
         ignored,
         queueTagged,
@@ -179,6 +181,7 @@ function readList(collectionID: number): FolderList | null {
     queueTagged,
     signature: JSON.stringify([
       pick.id,
+      collection.name,
       pick.parsed.value,
       resolved,
       ignored,

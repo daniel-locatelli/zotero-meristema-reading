@@ -6,7 +6,14 @@ import {
   writeReadingList,
   type ReadingListDoc,
 } from "../../src/format/readingList";
-import { idle, makeListNote, makePaper, plugin, waitFor } from "./helpers";
+import {
+  idle,
+  makeListNote,
+  makePaper,
+  openSecondWindow,
+  plugin,
+  waitFor,
+} from "./helpers";
 
 const TAB_TYPE = `${config.addonRef}-list`;
 const OPEN_TABS = `extensions.${config.addonRef}.openTabs`;
@@ -28,6 +35,17 @@ describe("A list tab open in two windows", function () {
         `.mr-list.mr-tab [data-key="${paper.key}"] .mr-why`,
       ) as HTMLTextAreaElement | null
     )?.value ?? null;
+  /** The collection keys the plugin's open-tab record holds. */
+  const recorded = (): string[] => {
+    try {
+      const raw = JSON.parse(String(Zotero.Prefs.get(OPEN_TABS, true) ?? ""));
+      return Array.isArray(raw)
+        ? raw.map((tab: any) => String(tab?.collectionKey))
+        : [];
+    } catch {
+      return [];
+    }
+  };
   async function setReason(why: string): Promise<void> {
     const parsed = parseReadingList(note.getNote());
     const doc = (parsed as { ok: true; value: ReadingListDoc }).value;
@@ -65,23 +83,7 @@ describe("A list tab open in two windows", function () {
         { kind: "user" },
       ),
     );
-    two = Services.ww.openWindow(
-      null as any,
-      "chrome://zotero/content/zoteroPane.xhtml",
-      "_blank",
-      "chrome,all,dialog=no",
-      null as any,
-    );
-    const ready = await waitFor(
-      () =>
-        Zotero.getMainWindows().includes(two) &&
-        two.document.readyState === "complete" &&
-        two.Zotero_Tabs &&
-        two.ZoteroPane?.collectionsView,
-      20_000,
-    );
-    expect(ready, "a second main window opens").to.be.ok;
-    await idle();
+    two = await openSecondWindow();
   });
 
   after(async function () {
@@ -110,5 +112,20 @@ describe("A list tab open in two windows", function () {
     for (const tab of listTabs(two)) two.Zotero_Tabs.close(tab.id);
     await setReason("third");
     await untilReason(one, "third", "the first window");
+  });
+
+  it("keeps the tab recorded while one window still shows it", async function () {
+    plugin().api.openList(two, collection.id);
+    await untilReason(two, "third", "the second window");
+    expect(recorded(), "one record for the two tabs").to.deep.equal([
+      collection.key,
+    ]);
+    for (const tab of listTabs(two)) two.Zotero_Tabs.close(tab.id);
+    expect(
+      recorded(),
+      "closed in the second window, still open in the first",
+    ).to.deep.equal([collection.key]);
+    for (const tab of listTabs(one)) one.Zotero_Tabs.close(tab.id);
+    expect(recorded(), "closed in both windows").to.deep.equal([]);
   });
 });

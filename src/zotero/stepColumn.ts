@@ -5,6 +5,10 @@ import { report } from "./report";
 
 let dataKey: string | null = null;
 let refreshes = 0;
+/** The pane whose item tree is being sorted again, while it is. */
+let sortingPane: _ZoteroTypes.ZoteroPane | null = null;
+/** The windows' sorts, one after another, so `sortingPane` names each in turn. */
+let sorts: Promise<void> = Promise.resolve();
 
 /** A paper's cell data in a folder's list; empty when the folder has none. */
 export function stepCell(itemKey: string, collectionID: number): string {
@@ -27,27 +31,44 @@ export async function registerStepColumn(): Promise<void> {
     flex: 0,
     showInColumnPicker: true,
     zoteroPersist: ["width", "ordinal", "hidden", "sortDirection"],
+    // Zotero passes the provider only the item and the column's key, not the
+    // tree or its window. The data is what a sort compares, so it comes from
+    // the pane being sorted again, else the active pane: the one whose column
+    // header was clicked. The cell is drawn from its own window instead.
     dataProvider: (item: Zotero.Item) => {
-      // Zotero passes the provider only the item and the column's key, not
-      // the tree or its window, so the folder comes from the active pane.
-      const collectionID =
-        Zotero.getActiveZoteroPane()?.getSelectedCollection(true);
-      return collectionID ? stepCell(item.key, collectionID) : "";
+      const pane = sortingPane ?? Zotero.getActiveZoteroPane();
+      return cellIn(pane, item.key) ?? "";
     },
     renderCell: (
-      _index: number,
+      index: number,
       data: string,
       column: { className: string },
       _isFirstColumn: boolean,
       document: Document,
     ) => {
+      const pane = (document.defaultView as any)?.ZoteroPane as
+        _ZoteroTypes.ZoteroPane | undefined;
+      const item = (pane?.itemsView as any)?.getRow(index)?.ref as
+        Zotero.Item | undefined;
       const cell = document.createElement("span");
       cell.className = `cell ${column.className}`;
-      cell.textContent = stepText(data);
+      cell.textContent = stepText(
+        (item?.key && cellIn(pane, item.key)) ?? data,
+      );
       return cell;
     },
   } as any);
   dataKey = typeof key === "string" ? key : null;
+}
+
+/** A paper's cell data in the collection `pane` shows; null without a pane. */
+function cellIn(
+  pane: _ZoteroTypes.ZoteroPane | null | undefined,
+  itemKey: string,
+): string | null {
+  if (!pane) return null;
+  const collectionID = pane.getSelectedCollection(true);
+  return collectionID ? stepCell(itemKey, collectionID) : "";
 }
 
 /**
@@ -66,9 +87,19 @@ export function refreshStepColumn(): void {
     // One window's item tree failing, even before it is built, must not
     // skip the other windows or the caller's own redraws.
     try {
-      const view = (win as any).ZoteroPane?.itemsView;
+      const pane = (win as any).ZoteroPane as _ZoteroTypes.ZoteroPane;
+      const view = pane?.itemsView as any;
       if (!dataKey || !view || view.getSortField?.() !== dataKey) continue;
-      Promise.resolve(view.sort()).catch(report);
+      sorts = sorts
+        .then(async () => {
+          sortingPane = pane;
+          try {
+            await view.sort();
+          } finally {
+            sortingPane = null;
+          }
+        })
+        .catch(report);
     } catch (error) {
       report(error);
     }

@@ -354,3 +354,25 @@ export async function makeListNote(
   await note.saveTx({ skipSelect: true });
   return note;
 }
+
+/** Opens a second main window and settles once its panes are built. */
+export async function openSecondWindow(): Promise<any> {
+  const win = Services.ww.openWindow(
+    null as any,
+    "chrome://zotero/content/zoteroPane.xhtml",
+    "_blank",
+    "chrome,all,dialog=no",
+    null as any,
+  ) as any;
+  const ready = await waitFor(
+    () =>
+      Zotero.getMainWindows().includes(win) &&
+      win.document.readyState === "complete" &&
+      win.Zotero_Tabs &&
+      win.ZoteroPane?.collectionsView,
+    20_000,
+  );
+  expect(Boolean(ready), "a second main window opens").to.equal(true);
+  await idle();
+  return win;
+}

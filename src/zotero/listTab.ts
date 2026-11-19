@@ -99,9 +99,13 @@ export function openListTab(
     select,
     onClose: () => {
       views.delete(body);
+      // Another window still shows the list: its tab keeps the record.
+      const shown = [...views.values()].some(
+        (other) => other.collectionID === collectionID,
+      );
       // The reader closed it, so its record goes; quitting or shutting down
       // has frozen the record first, and this writes nothing.
-      if (record) writeRecord(withoutTab(readRecord(), record));
+      if (record && !shown) writeRecord(withoutTab(readRecord(), record));
     },
   });
   if (record) writeRecord(withTab(readRecord(), record));
